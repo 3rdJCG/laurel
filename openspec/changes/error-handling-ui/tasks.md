@@ -1,30 +1,30 @@
 ## 1. IPC エラーレスポンス対応
 
-- [ ] 1.1 `data:load-all` のレスポンス型に `skippedFiles?: { path: string; reason: string }[]` を追加する
-- [ ] 1.2 `data:save-project` のレスポンス型に `error?: { code: string; message: string }` を追加する
-- [ ] 1.3 メインプロセス側の `data:load-all` ハンドラーで JSON parse エラーをキャッチし、スキップファイル情報をレスポンスに含める処理を追加する
-- [ ] 1.4 メインプロセス側の `data:save-project` ハンドラーで書き込みエラーをキャッチし、エラー情報をレスポンスに返す処理を追加する
+- [x] 1.1 `data:load-all` のレスポンス型に `errors: { filePath: string; message: string }[]` を追加する
+- [x] 1.2 `data:save-project` のレスポンス型に `error?: { code: string; message: string }` を追加する
+- [x] 1.3 メインプロセス側の `data:load-all` ハンドラーで JSON parse エラーをキャッチし、スキップファイル情報をレスポンスに含める処理を追加する
+- [x] 1.4 メインプロセス側の `data:save-project` ハンドラーで書き込みエラーをキャッチし、エラー情報をレスポンスに返す処理を追加する
 - [ ] 1.5 バージョン不整合チェックを `data:load-all` ハンドラーに追加し、未対応バージョンをスキップファイルとして扱う
 
 ## 2. エラーバナーコンポーネント実装
 
-- [ ] 2.1 エラーバナーコンポーネント（`ErrorBanner`）を作成する（Critical/Warning の2種類に対応）
-- [ ] 2.2 バナーを手動で閉じるボタンを実装する
-- [ ] 2.3 「再試行」ボタンとコールバック props を実装する
-- [ ] 2.4 「ファイルを開く」ボタン（`shell.showItemInFolder` IPC 経由）を実装する
+- [x] 2.1 エラーバナーコンポーネント（`ErrorBanner`）を作成する（Critical/Warning の2種類に対応）
+- [x] 2.2 バナーを手動で閉じるボタンを実装する
+- [x] 2.3 「再試行」ボタンとコールバック props を実装する
+- [x] 2.4 「ファイルを開く」ボタン（`shell.showItemInFolder` IPC 経由）を実装する
 - [ ] 2.5 同種エラーの集約ロジックを実装する（同一 code のエラーは上書き）
 
 ## 3. エラーバナーの組み込み
 
 - [ ] 3.1 プロジェクト画面に保存失敗バナーを組み込む（`data:save-project` エラー時に表示）
 - [ ] 3.2 再試行ボタンで保存を再実行し、成功時にバナーを閉じる処理を実装する
-- [ ] 3.3 Home 画面またはアプリ起動時のデータ読み込み失敗バナーを組み込む
-- [ ] 3.4 破損/バージョン不整合ファイルの Warning バナーを起動時に表示する処理を実装する
+- [x] 3.3 Home 画面またはアプリ起動時のデータ読み込み失敗バナーを組み込む
+- [x] 3.4 破損/バージョン不整合ファイルの Warning バナーを起動時に表示する処理を実装する
 
 ## 4. shell.showItemInFolder IPC 追加
 
-- [ ] 4.1 `dialog:show-item-in-folder` IPC ハンドラーをメインプロセスに追加する
-- [ ] 4.2 preload の contextBridge に `dialog:show-item-in-folder` を追加する
+- [x] 4.1 `dialog:show-item-in-folder` IPC ハンドラーをメインプロセスに追加する
+- [x] 4.2 preload の contextBridge に `dialog:show-item-in-folder` を追加する
 
 ## 5. 動作確認
 
