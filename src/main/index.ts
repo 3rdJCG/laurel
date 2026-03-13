@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join, basename } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -133,8 +133,8 @@ function setupIpc(): void {
       }
     }
 
-    // Save settings
-    saveSettings({ dataDir: newDataDir })
+    // Save settings (preserve existing genres)
+    saveSettings({ ...current, dataDir: newDataDir })
 
     // Restart watcher on new dir
     initWatcher(newDataDir)
@@ -149,6 +149,15 @@ function setupIpc(): void {
 
   ipcMain.handle('app:get-version', () => {
     return app.getVersion()
+  })
+
+  ipcMain.handle('dialog:open-folder', async () => {
+    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    return result.canceled ? null : result.filePaths[0]
+  })
+
+  ipcMain.handle('dialog:show-item-in-folder', (_event, filePath: string) => {
+    shell.showItemInFolder(filePath)
   })
 }
 

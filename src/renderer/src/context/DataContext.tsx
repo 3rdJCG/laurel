@@ -3,11 +3,14 @@ import { ulid } from 'ulid'
 import type { Project, Task } from '../types'
 import type { ProjectFile, LoadAllResult } from '../../../main/storage/projectStore'
 
+export type LoadError = { filePath: string; message: string }
+
 type DataContextValue = {
   projects: Project[]
   tasksByProject: Record<string, Task[]>
   isLoading: boolean
   error: string | null
+  loadErrors: LoadError[]
   createProject: (name: string) => Promise<void>
   updateProject: (projectId: string, changes: Partial<Project>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
@@ -15,6 +18,7 @@ type DataContextValue = {
   updateTask: (projectId: string, taskId: string, changes: Partial<Task>) => Promise<void>
   deleteTask: (projectId: string, taskId: string) => Promise<void>
   saveProjectData: (projectId: string) => Promise<void>
+  dismissLoadErrors: () => void
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -24,6 +28,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
   const [tasksByProject, setTasksByProject] = useState<Record<string, Task[]>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [loadErrors, setLoadErrors] = useState<LoadError[]>([])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
@@ -40,6 +45,9 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       projectList.sort((a, b) => a.id.localeCompare(b.id))
       setProjects(projectList)
       setTasksByProject(tasksMap)
+      if (result.errors && result.errors.length > 0) {
+        setLoadErrors(result.errors)
+      }
     } catch (err) {
       setError(String(err))
     } finally {
@@ -223,6 +231,8 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     [projects, tasksByProject]
   )
 
+  const dismissLoadErrors = useCallback(() => setLoadErrors([]), [])
+
   return (
     <DataContext.Provider
       value={{
@@ -230,13 +240,15 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         tasksByProject,
         isLoading,
         error,
+        loadErrors,
         createProject,
         updateProject,
         deleteProject,
         createTask,
         updateTask,
         deleteTask,
-        saveProjectData
+        saveProjectData,
+        dismissLoadErrors
       }}
     >
       {children}

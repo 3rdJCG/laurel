@@ -4,6 +4,7 @@ import * as path from 'path'
 
 export type AppSettings = {
   dataDir: string
+  genres: string[]
 }
 
 const settingsDir = path.join(app.getPath('userData'), 'laurel')
@@ -19,13 +20,14 @@ export function getSettings(): AppSettings {
       const raw = fs.readFileSync(settingsPath, 'utf-8')
       const parsed = JSON.parse(raw) as Partial<AppSettings>
       return {
-        dataDir: parsed.dataDir ?? defaultDataDir()
+        dataDir: parsed.dataDir ?? defaultDataDir(),
+        genres: parsed.genres ?? []
       }
     }
   } catch {
     // fall through to default
   }
-  return { dataDir: defaultDataDir() }
+  return { dataDir: defaultDataDir(), genres: [] }
 }
 
 export function saveSettings(settings: AppSettings): void {
