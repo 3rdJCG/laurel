@@ -18,9 +18,9 @@
 
 ## 4. レンダラー側の移行
 
-- [ ] 4.1 アプリ起動時に `data:load-all` で初期データを取得するよう変更する
-- [ ] 4.2 Project・Task の作成・更新・削除操作を IPC 経由の保存に切り替える
-- [ ] 4.3 `data:project-changed` / `data:project-added` / `data:project-removed` イベントを受け取り状態を更新する
+- [x] 4.1 アプリ起動時に `data:load-all` で初期データを取得するよう変更する
+- [x] 4.2 Project・Task の作成・更新・削除操作を IPC 経由の保存に切り替える
+- [x] 4.3 `data:project-changed` / `data:project-added` / `data:project-removed` イベントを受け取り状態を更新する
 
 ## 5. 動作確認
 
