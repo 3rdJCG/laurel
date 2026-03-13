@@ -118,14 +118,6 @@ export function ProjectScreen({ projectId }: Props): JSX.Element {
     if (e.key === 'Escape') { setRootTaskTitle(''); setShowAddRootForm(false) }
   }
 
-  if (!project) {
-    return (
-      <div className="project-screen">
-        <p>プロジェクトが見つかりません</p>
-      </div>
-    )
-  }
-
   const filteredTasks = useMemo(() => {
     let tasks = filterTasksByVisibility(allTasks, showCompletedTasks)
     if (filterGenre) tasks = tasks.filter((t) => t.genre === filterGenre)
@@ -136,6 +128,14 @@ export function ProjectScreen({ projectId }: Props): JSX.Element {
   const rootTasks = filteredTasks
     .filter((t: Task) => t.parentId === null)
     .sort((a: Task, b: Task) => a.order - b.order)
+
+  if (!project) {
+    return (
+      <div className="project-screen">
+        <p>プロジェクトが見つかりません</p>
+      </div>
+    )
+  }
 
   return (
     <div className="project-screen">
