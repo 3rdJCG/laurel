@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useData } from '../context/DataContext'
 import type { Task, TaskStatus } from '../types'
 
@@ -18,10 +21,16 @@ type Props = {
   editingTaskId: string | null
   onEditStart: (taskId: string) => void
   onEditEnd: () => void
+  onSaveError?: (message: string) => void
+  expandedIds: Set<string>
+  onToggleExpand: (taskId: string) => void
 }
 
-export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, onEditEnd }: Props): JSX.Element {
+export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, onEditEnd, onSaveError, expandedIds, onToggleExpand }: Props): JSX.Element {
   const { updateTask, deleteTask, createTask } = useData()
+
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id })
+  const sortableStyle = { transform: CSS.Transform.toString(transform), transition }
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showSubtaskForm, setShowSubtaskForm] = useState(false)
@@ -72,17 +81,25 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
 
   const handleStatusChange = async (status: TaskStatus): Promise<void> => {
     setShowStatusDropdown(false)
-    await updateTask(task.projectId, task.id, { status })
+    try {
+      await updateTask(task.projectId, task.id, { status })
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
   }
 
   const handleEditConfirm = async (): Promise<void> => {
     const title = editTitle.trim()
     if (!title) return
-    await updateTask(task.projectId, task.id, {
-      title,
-      genre: editGenre.trim() || null,
-      tags: editTags
-    })
+    try {
+      await updateTask(task.projectId, task.id, {
+        title,
+        genre: editGenre.trim() || null,
+        tags: editTags
+      })
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
     onEditEnd()
   }
 
@@ -100,14 +117,22 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
   }
 
   const handleDeleteConfirm = async (): Promise<void> => {
-    await deleteTask(task.projectId, task.id)
+    try {
+      await deleteTask(task.projectId, task.id)
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
     setShowDeleteConfirm(false)
   }
 
   const handleSubtaskCreate = async (): Promise<void> => {
     const title = subtaskTitle.trim()
     if (!title) return
-    await createTask(task.projectId, task.id, title, task)
+    try {
+      await createTask(task.projectId, task.id, title, task)
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
     setSubtaskTitle('')
     setShowSubtaskForm(false)
   }
@@ -120,8 +145,29 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
     }
   }
 
+  const handleChildDragEnd = async (event: DragEndEvent): Promise<void> => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = childTasks.findIndex((t) => t.id === active.id)
+    const newIndex = childTasks.findIndex((t) => t.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(childTasks, oldIndex, newIndex)
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        if (reordered[i].order !== i) {
+          await updateTask(reordered[i].projectId, reordered[i].id, { order: i })
+        }
+      }
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
+  }
+
+  const isExpanded = expandedIds.has(task.id)
+  const hasChildren = childTasks.length > 0
+
   return (
-    <div className={`task-item task-item--depth-${depth}`} style={{ marginLeft: depth * 20 }}>
+    <div ref={setNodeRef} style={{ ...sortableStyle, marginLeft: depth * 20 }} className={`task-item task-item--depth-${depth}`}>
       {isEditing ? (
         <div className="task-edit-form">
           <input
@@ -176,6 +222,18 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
         </div>
       ) : (
         <div className="task-row">
+          {/* Drag handle */}
+          <button className="drag-handle" {...attributes} {...listeners} aria-label="ドラッグ">⠿</button>
+
+          {/* Expand/collapse toggle */}
+          {hasChildren ? (
+            <button className="expand-toggle" onClick={() => onToggleExpand(task.id)}>
+              {isExpanded ? '▼' : '▶'}
+            </button>
+          ) : (
+            <span className="expand-toggle-placeholder" />
+          )}
+
           {/* Status badge */}
           <div className="status-wrapper">
             <button
@@ -241,17 +299,26 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
       )}
 
       {/* Recursive children */}
-      {childTasks.map((child) => (
-        <TaskItem
-          key={child.id}
-          task={child}
-          depth={depth + 1}
-          allTasks={allTasks}
-          editingTaskId={editingTaskId}
-          onEditStart={onEditStart}
-          onEditEnd={onEditEnd}
-        />
-      ))}
+      {hasChildren && isExpanded && (
+        <DndContext collisionDetection={closestCenter} onDragEnd={handleChildDragEnd}>
+          <SortableContext items={childTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            {childTasks.map((child) => (
+              <TaskItem
+                key={child.id}
+                task={child}
+                depth={depth + 1}
+                allTasks={allTasks}
+                editingTaskId={editingTaskId}
+                onEditStart={onEditStart}
+                onEditEnd={onEditEnd}
+                onSaveError={onSaveError}
+                expandedIds={expandedIds}
+                onToggleExpand={onToggleExpand}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      )}
     </div>
   )
 }

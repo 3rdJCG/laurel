@@ -38,6 +38,11 @@ export function loadAll(dataDir: string): LoadAllResult {
         result.errors.push({ filePath, message: 'Invalid project file structure' })
         continue
       }
+      // Version check: only support version 1
+      if (parsed.version !== 1) {
+        result.errors.push({ filePath, message: `Unsupported file version: ${parsed.version}` })
+        continue
+      }
       // Migrate: ensure order field exists on all tasks
       parsed.tasks = (parsed.tasks ?? []).map((t, i) => ({
         ...t,

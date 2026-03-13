@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useData } from '../context/DataContext'
 import { TaskItem } from '../components/TaskItem'
+import { ErrorBanner } from '../components/ErrorBanner'
 import type { Task } from '../types'
 
 type Props = {
@@ -20,23 +23,35 @@ function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] 
 }
 
 export function ProjectScreen({ projectId }: Props): JSX.Element {
-  const { projects, tasksByProject, createTask } = useData()
+  const { projects, tasksByProject, createTask, updateTask, saveProjectData } = useData()
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [showCompletedTasks, setShowCompletedTasks] = useState(true)
   const [showAddRootForm, setShowAddRootForm] = useState(false)
   const [rootTaskTitle, setRootTaskTitle] = useState('')
   const [filterGenre, setFilterGenre] = useState<string>('')
   const [filterTags, setFilterTags] = useState<string[]>([])
+  const [saveError, setSaveError] = useState<string | null>(null)
   const rootInputRef = useRef<HTMLInputElement>(null)
 
   const project = projects.find((p) => p.id === projectId)
   const allTasks = tasksByProject[projectId] ?? []
 
-  // Reset filters when projectId changes
+  // Reset filters and expand state when projectId changes
   useEffect(() => {
     setFilterGenre('')
     setFilterTags([])
+    setExpandedIds(new Set())
   }, [projectId])
+
+  const handleToggleExpand = (taskId: string): void => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
 
   // Collect available genres and tags from tasks
   const availableGenres = useMemo(() => {
@@ -58,9 +73,44 @@ export function ProjectScreen({ projectId }: Props): JSX.Element {
   const handleAddRootTask = async (): Promise<void> => {
     const title = rootTaskTitle.trim()
     if (!title) return
-    await createTask(projectId, null, title)
+    try {
+      await createTask(projectId, null, title)
+      setSaveError(null)
+    } catch (err) {
+      setSaveError(String(err))
+    }
     setRootTaskTitle('')
     setShowAddRootForm(false)
+  }
+
+  const handleRetry = async (): Promise<void> => {
+    try {
+      await saveProjectData(projectId)
+      setSaveError(null)
+    } catch (err) {
+      setSaveError(String(err))
+    }
+  }
+
+  const handleRootDragEnd = async (event: DragEndEvent): Promise<void> => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const currentRootTasks = (tasksByProject[projectId] ?? [])
+      .filter((t) => t.parentId === null)
+      .sort((a, b) => a.order - b.order)
+    const oldIndex = currentRootTasks.findIndex((t) => t.id === active.id)
+    const newIndex = currentRootTasks.findIndex((t) => t.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(currentRootTasks, oldIndex, newIndex)
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        if (reordered[i].order !== i) {
+          await updateTask(projectId, reordered[i].id, { order: i })
+        }
+      }
+    } catch (err) {
+      setSaveError(String(err))
+    }
   }
 
   const handleRootKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -92,6 +142,15 @@ export function ProjectScreen({ projectId }: Props): JSX.Element {
       <header className="project-header">
         <h1>{project.name}</h1>
       </header>
+
+      {saveError && (
+        <ErrorBanner
+          level="critical"
+          message={`保存に失敗しました: ${saveError}`}
+          onClose={() => setSaveError(null)}
+          onRetry={handleRetry}
+        />
+      )}
 
       <div className="task-toolbar">
         <button
@@ -134,17 +193,24 @@ export function ProjectScreen({ projectId }: Props): JSX.Element {
             {showCompletedTasks ? 'タスクはまだありません' : '該当するタスクがありません'}
           </p>
         ) : (
-          rootTasks.map((task: Task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              depth={1}
-              allTasks={filteredTasks}
-              editingTaskId={editingTaskId}
-              onEditStart={(id) => setEditingTaskId(id)}
-              onEditEnd={() => setEditingTaskId(null)}
-            />
-          ))
+          <DndContext collisionDetection={closestCenter} onDragEnd={handleRootDragEnd}>
+            <SortableContext items={rootTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+              {rootTasks.map((task: Task) => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  depth={1}
+                  allTasks={filteredTasks}
+                  editingTaskId={editingTaskId}
+                  onEditStart={(id) => setEditingTaskId(id)}
+                  onEditEnd={() => setEditingTaskId(null)}
+                  onSaveError={(msg) => setSaveError(msg)}
+                  expandedIds={expandedIds}
+                  onToggleExpand={handleToggleExpand}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         )}
 
         {showAddRootForm ? (
