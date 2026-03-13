@@ -123,6 +123,39 @@ watcher.on('change', (filePath) => {
 5. `settings.json` に新パスを保存
 6. レンダラーにデータ再読み込みを通知
 
+### 6. 状態変更操作後の永続化ルール（横断ルール）
+
+レンダラー側でプロジェクト・タスクのデータを変更する**すべての操作**は、UIの状態更新と同時に対応する IPC を呼び出してファイルに永続化しなければならない。
+
+```
+操作の種類                          呼び出す IPC
+──────────────────────────────────────────────────────────
+プロジェクト作成                   data:save-project
+プロジェクト名変更                 data:save-project
+プロジェクト削除                   data:delete-project
+タスク作成（ルート・サブタスク）    data:save-project
+タスクタイトル編集                 data:save-project
+タスクステータス変更               data:save-project
+タスク genre / tags 変更          data:save-project
+タスク削除（子孫連鎖削除含む）     data:save-project
+タスク並び替え                    data:save-project
+```
+
+**原則:** 「UIを更新した = ファイルも更新した」でなければならない。IPC 呼び出しを省略した場合、アプリ再起動時に変更が失われる。
+
+**実装パターン:**
+```ts
+// 例: タスクステータス変更
+async function changeTaskStatus(projectId: string, taskId: string, newStatus: TaskStatus) {
+  // 1. インメモリ状態を更新
+  const updated = updateTaskInState(projectId, taskId, { status: newStatus })
+  // 2. 即座にファイルへ永続化
+  await window.api.invoke('data:save-project', { projectId, project: updated.project, tasks: updated.tasks })
+}
+```
+
+**エラー時の挙動:** `data:save-project` / `data:delete-project` が失敗した場合は `error-handling-ui` の `storage-error-notification` spec に従いエラーを通知する。UIの状態はロールバックしない（Last Write Wins 方針）。
+
 ## Risks / Trade-offs
 
 - [ポーリングによる最大1秒のタイムラグ] → 実用上問題なし。必要なら `interval` を短縮できる
