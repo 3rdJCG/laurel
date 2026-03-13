@@ -3,6 +3,7 @@ import { join, basename } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { loadWindowState, saveWindowState } from './windowState'
+import { setupCsp } from './csp'
 import { getSettings, saveSettings } from './storage/settings'
 import {
   loadAll,
@@ -168,6 +169,7 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  setupCsp(is.dev)
   setupIpc()
   createWindow()
 
