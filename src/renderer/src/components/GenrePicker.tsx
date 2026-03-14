@@ -23,17 +23,28 @@ export function GenrePicker({ value, genres, onChange, onAddGenre }: Props): JSX
 
   const selectedGenre = displayGenres.find((g) => g.name === value) ?? null
 
+  const close = (): void => {
+    setOpen(false)
+    setShowAddForm(false)
+    setNewName('')
+  }
+
   // Close on outside click
   useEffect(() => {
-    const handler = (e: MouseEvent): void => {
+    const handleClick = (e: MouseEvent): void => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-        setShowAddForm(false)
-        setNewName('')
+        close()
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const handleKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [])
 
   useEffect(() => {
@@ -59,7 +70,7 @@ export function GenrePicker({ value, genres, onChange, onAddGenre }: Props): JSX
 
   const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') { e.preventDefault(); handleAddSubmit() }
-    if (e.key === 'Escape') { setShowAddForm(false); setNewName('') }
+    // Escape is handled by global keydown listener
   }
 
   return (
