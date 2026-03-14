@@ -830,6 +830,76 @@ hr {
   flex: 1;
 }
 
+.genre-item-name {
+  font-size: 14px;
+}
+
+.genre-color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.genre-color-swatch:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.genre-color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 10px;
+  margin-top: 4px;
+}
+
+.genre-color-palette {
+  display: grid;
+  grid-template-columns: repeat(6, 24px);
+  gap: 4px;
+}
+
+.genre-palette-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.genre-palette-swatch:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.genre-palette-swatch--active {
+  border-color: #fff;
+}
+
+.genre-color-hex-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.genre-color-hex-prefix {
+  font-size: 13px;
+  color: #aaa;
+}
+
+.genre-color-hex-input {
+  width: 80px;
+  font-size: 13px;
+  font-family: monospace;
+  padding: 3px 6px;
+}
+
 /* ===== Error Banner ===== */
 .error-banner {
   display: flex;

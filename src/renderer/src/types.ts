@@ -1,5 +1,10 @@
 export type TaskStatus = 'todo' | 'in-progress' | 'in-review' | 'done'
 
+export type Genre = {
+  name: string
+  color: string
+}
+
 export type Project = {
   id: string
   name: string
