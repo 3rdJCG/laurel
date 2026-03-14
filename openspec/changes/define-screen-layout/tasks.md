@@ -24,5 +24,5 @@
 ## 5. App.tsx への組み込みと動作確認
 
 - [x] 5.1 `App.tsx` で画面状態に応じて `HomeScreen` / `ProjectScreen` を切り替えて表示する
-- [ ] 5.2 `npm run dev` で起動し、Home・プロジェクト画面の遷移が動作することを確認する
+- [x] 5.2 `npm run dev` で起動し、Home・プロジェクト画面の遷移が動作することを確認する
 - [x] 5.3 `npm run typecheck` で型エラーがないことを確認する

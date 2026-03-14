@@ -10,7 +10,7 @@
 - [x] 2.2 デフォルトの CSP を `connect-src 'none'` を含む安全な設定にする
 - [x] 2.3 `src/main/index.ts` で `csp.ts` を使用し、`session.defaultSession.webRequest` に CSP を適用
 - [x] 2.4 開発環境（`isDev`）では CSP を緩和し、開発ツールが動作するよう分岐させる
-- [ ] 2.5 動作確認: 本番ビルドで外部 URL への fetch がブロックされることを確認
+- [x] 2.5 動作確認: 本番ビルドで外部 URL への fetch がブロックされることを確認
 
 ## 3. アプリ内 About UI の実装
 

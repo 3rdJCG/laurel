@@ -1,7 +1,7 @@
 ## 1. フィルタリングロジック
 
 - [x] 1.1 `filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[]` 関数を実装する（再帰的に `done` タスクと子孫を除外）
-- [ ] 1.2 `status === 'done'` の親タスクを除外したとき、子タスクも除外されることをユニットテストで確認する
+- [x] 1.2 `status === 'done'` の親タスクを除外したとき、子タスクも除外されることをユニットテストで確認する
 
 ## 2. ProjectScreen の状態追加
 
