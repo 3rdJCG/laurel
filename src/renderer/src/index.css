@@ -834,6 +834,12 @@ hr {
   font-size: 14px;
 }
 
+.genre-color-swatch-wrapper {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .genre-color-swatch {
   width: 20px;
   height: 20px;
@@ -849,6 +855,10 @@ hr {
 }
 
 .genre-color-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -856,7 +866,6 @@ hr {
   border: 1px solid #444;
   border-radius: 6px;
   padding: 10px;
-  margin-top: 4px;
 }
 
 .genre-color-palette {
