@@ -52,10 +52,8 @@ export function SettingsScreen(): JSX.Element {
     if (selected) setDataDir(selected)
   }
 
-  const saveSettingsNow = async (newSettings: Partial<AppSettings>): Promise<boolean> => {
-    const current = { dataDir, genres }
-    const merged = { ...current, ...newSettings }
-    const result = (await window.api.invoke('settings:set', merged)) as {
+  const saveDataDir = async (newDataDir: string): Promise<boolean> => {
+    const result = (await window.api.invoke('settings:set', { dataDir: newDataDir })) as {
       ok: boolean
       error?: { code: string; message: string }
     }
@@ -67,11 +65,16 @@ export function SettingsScreen(): JSX.Element {
     return true
   }
 
+  const saveGenres = async (updated: Genre[]): Promise<void> => {
+    setGenres(updated)
+    await window.api.invoke('settings:genres-set', updated)
+  }
+
   const handleSave = async (): Promise<void> => {
     setSaving(true)
     setErrorMsg(null)
     setSuccessMsg(null)
-    const ok = await saveSettingsNow({ dataDir, genres })
+    const ok = await saveDataDir(dataDir)
     setSaving(false)
     if (ok) setSuccessMsg('設定を保存しました')
   }
@@ -79,23 +82,17 @@ export function SettingsScreen(): JSX.Element {
   const handleAddGenre = async (): Promise<void> => {
     const name = newGenre.trim()
     if (!name || genres.some((g) => g.name === name)) return
-    const updated = [...genres, { name, color: DEFAULT_COLOR }]
-    setGenres(updated)
     setNewGenre('')
-    await saveSettingsNow({ genres: updated })
+    await saveGenres([...genres, { name, color: DEFAULT_COLOR }])
   }
 
   const handleDeleteGenre = async (name: string): Promise<void> => {
-    const updated = genres.filter((g) => g.name !== name)
-    setGenres(updated)
     setDeletingGenre(null)
-    await saveSettingsNow({ genres: updated })
+    await saveGenres(genres.filter((g) => g.name !== name))
   }
 
   const handleColorChange = async (name: string, color: string): Promise<void> => {
-    const updated = genres.map((g) => (g.name === name ? { ...g, color } : g))
-    setGenres(updated)
-    await saveSettingsNow({ genres: updated })
+    await saveGenres(genres.map((g) => (g.name === name ? { ...g, color } : g)))
   }
 
   const handleSwatchClick = (name: string, currentColor: string): void => {

@@ -4,7 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { loadWindowState, saveWindowState } from './windowState'
 import { setupCsp } from './csp'
-import { getSettings, saveSettings } from './storage/settings'
+import { getSettings, saveSettings, type Genre } from './storage/settings'
 import {
   loadAll,
   loadOne,
@@ -148,6 +148,12 @@ function setupIpc(): void {
       mainWindow.webContents.send('data:reload')
     }
 
+    return { ok: true }
+  })
+
+  ipcMain.handle('settings:genres-set', (_event, genres: Genre[]) => {
+    const current = getSettings()
+    saveSettings({ ...current, genres })
     return { ok: true }
   })
 
