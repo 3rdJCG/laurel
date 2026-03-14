@@ -2,14 +2,13 @@ import { useState } from 'react'
 import { DataProvider, useData } from './context/DataContext'
 import { HomeScreen } from './screens/HomeScreen'
 import { ProjectScreen } from './screens/ProjectScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
 import { Sidebar, type View } from './components/Sidebar'
-import { SettingsModal } from './components/SettingsModal'
 import { AboutModal } from './components/AboutModal'
 
 function AppContent(): JSX.Element {
   const { projects } = useData()
   const [currentView, setCurrentView] = useState<View>({ type: 'home' })
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
 
   const renderMain = (): JSX.Element => {
@@ -20,6 +19,9 @@ function AppContent(): JSX.Element {
           onNavigateHome={() => setCurrentView({ type: 'home' })}
         />
       )
+    }
+    if (currentView.type === 'settings') {
+      return <SettingsScreen />
     }
     return (
       <HomeScreen
@@ -34,14 +36,12 @@ function AppContent(): JSX.Element {
         currentView={currentView}
         projects={projects}
         onNavigate={setCurrentView}
-        onSettingsOpen={() => setIsSettingsOpen(true)}
         onAboutOpen={() => setIsAboutOpen(true)}
       />
       <main className="app-main">
         {renderMain()}
       </main>
 
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </div>
   )

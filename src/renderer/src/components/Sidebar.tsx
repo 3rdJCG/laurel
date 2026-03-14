@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { Project } from '../types'
 
-export type View = { type: 'home' } | { type: 'project'; projectId: string }
+export type View = { type: 'home' } | { type: 'project'; projectId: string } | { type: 'settings' }
 
 type Props = {
   currentView: View
   projects: Project[]
   onNavigate: (view: View) => void
-  onSettingsOpen: () => void
   onAboutOpen: () => void
 }
 
 const STORAGE_KEY = 'sidebar-collapsed'
 
-export function Sidebar({ currentView, projects, onNavigate, onSettingsOpen, onAboutOpen }: Props): JSX.Element {
+export function Sidebar({ currentView, projects, onNavigate, onAboutOpen }: Props): JSX.Element {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem(STORAGE_KEY) === 'true'
   })
@@ -24,6 +23,7 @@ export function Sidebar({ currentView, projects, onNavigate, onSettingsOpen, onA
 
   const isActive = (view: View): boolean => {
     if (view.type === 'home' && currentView.type === 'home') return true
+    if (view.type === 'settings' && currentView.type === 'settings') return true
     if (
       view.type === 'project' &&
       currentView.type === 'project' &&
@@ -71,7 +71,10 @@ export function Sidebar({ currentView, projects, onNavigate, onSettingsOpen, onA
       </div>
 
       <div className="sidebar-footer">
-        <button className="sidebar-item" onClick={onSettingsOpen}>
+        <button
+          className={`sidebar-item ${isActive({ type: 'settings' }) ? 'sidebar-item--active' : ''}`}
+          onClick={() => onNavigate({ type: 'settings' })}
+        >
           <span className="sidebar-icon">⚙️</span>
           {!collapsed && <span className="sidebar-label">Settings</span>}
         </button>
