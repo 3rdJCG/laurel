@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useData } from '../context/DataContext'
 import type { Genre } from '../types'
 
@@ -35,10 +35,22 @@ export function SettingsScreen(): JSX.Element {
   const [deletingGenre, setDeletingGenre] = useState<string | null>(null)
   const [openPickerName, setOpenPickerName] = useState<string | null>(null)
   const [hexInput, setHexInput] = useState('')
+  const pickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadSettings()
   }, [])
+
+  useEffect(() => {
+    if (!openPickerName) return
+    const handler = (e: MouseEvent): void => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setOpenPickerName(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openPickerName])
 
   const loadSettings = async (): Promise<void> => {
     const settings = (await window.api.invoke('settings:get')) as AppSettings
@@ -140,42 +152,47 @@ export function SettingsScreen(): JSX.Element {
         <ul className="genre-list">
           {genres.map((genre) => (
             <li key={genre.name} className="genre-item">
-              <button
-                className="genre-color-swatch"
-                style={{ backgroundColor: genre.color }}
-                onClick={() => handleSwatchClick(genre.name, genre.color)}
-                title="色を変更"
-              />
-              <span className="genre-item-name">{genre.name}</span>
-              {openPickerName === genre.name && (
-                <div className="genre-color-picker">
-                  <div className="genre-color-palette">
-                    {PALETTE.map((color) => (
-                      <button
-                        key={color}
-                        className={`genre-palette-swatch${genre.color === color ? ' genre-palette-swatch--active' : ''}`}
-                        style={{ backgroundColor: color }}
-                        onClick={() => {
-                          handleColorChange(genre.name, color)
-                          setHexInput(color.replace('#', ''))
-                        }}
-                        title={color}
+              <div
+                className="genre-color-swatch-wrapper"
+                ref={openPickerName === genre.name ? pickerRef : undefined}
+              >
+                <button
+                  className="genre-color-swatch"
+                  style={{ backgroundColor: genre.color }}
+                  onClick={() => handleSwatchClick(genre.name, genre.color)}
+                  title="色を変更"
+                />
+                {openPickerName === genre.name && (
+                  <div className="genre-color-picker">
+                    <div className="genre-color-palette">
+                      {PALETTE.map((color) => (
+                        <button
+                          key={color}
+                          className={`genre-palette-swatch${genre.color === color ? ' genre-palette-swatch--active' : ''}`}
+                          style={{ backgroundColor: color }}
+                          onClick={() => {
+                            handleColorChange(genre.name, color)
+                            setHexInput(color.replace('#', ''))
+                          }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                    <div className="genre-color-hex-row">
+                      <span className="genre-color-hex-prefix">#</span>
+                      <input
+                        type="text"
+                        className="genre-color-hex-input"
+                        maxLength={6}
+                        value={hexInput}
+                        onChange={(e) => handleHexInput(genre.name, e.target.value)}
+                        placeholder="rrggbb"
                       />
-                    ))}
+                    </div>
                   </div>
-                  <div className="genre-color-hex-row">
-                    <span className="genre-color-hex-prefix">#</span>
-                    <input
-                      type="text"
-                      className="genre-color-hex-input"
-                      maxLength={6}
-                      value={hexInput}
-                      onChange={(e) => handleHexInput(genre.name, e.target.value)}
-                      placeholder="rrggbb"
-                    />
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
+              <span className="genre-item-name">{genre.name}</span>
               <span style={{ flex: 1 }} />
               {deletingGenre === genre.name ? (
                 <span className="genre-delete-confirm">
