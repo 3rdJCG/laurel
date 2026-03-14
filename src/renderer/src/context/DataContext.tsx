@@ -192,7 +192,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         parentId,
         title,
         status: 'todo',
-        genre: inheritFrom?.genre ?? null,
+        genre: parentId !== null ? null : (inheritFrom?.genre ?? null),
         tags: inheritFrom?.tags ?? [],
         createdAt: new Date().toISOString(),
         order: maxOrder + 1

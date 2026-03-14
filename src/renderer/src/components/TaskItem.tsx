@@ -27,8 +27,16 @@ type Props = {
   onToggleExpand: (taskId: string) => void
 }
 
+function findRootTask(taskId: string, tasks: Task[]): Task | undefined {
+  const task = tasks.find((t) => t.id === taskId)
+  if (!task) return undefined
+  if (task.parentId === null) return task
+  return findRootTask(task.parentId, tasks)
+}
+
 export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, onEditEnd, onSaveError, expandedIds, onToggleExpand }: Props): JSX.Element {
   const { updateTask, deleteTask, createTask, genres, addGenre } = useData()
+  const isRoot = task.parentId === null
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id })
   const sortableStyle = { transform: CSS.Transform.toString(transform), transition }
@@ -93,11 +101,9 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
     const title = editTitle.trim()
     if (!title) return
     try {
-      await updateTask(task.projectId, task.id, {
-        title,
-        genre: editGenre.trim() || null,
-        tags: editTags
-      })
+      const changes: Parameters<typeof updateTask>[2] = { title, tags: editTags }
+      if (isRoot) changes.genre = editGenre.trim() || null
+      await updateTask(task.projectId, task.id, changes)
     } catch (err) {
       onSaveError?.(String(err))
     }
@@ -179,12 +185,14 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
             onKeyDown={handleEditKeyDown}
             placeholder="タスク名"
           />
-          <GenrePicker
-            value={editGenre || null}
-            genres={genres}
-            onChange={(v) => setEditGenre(v ?? '')}
-            onAddGenre={addGenre}
-          />
+          {isRoot && (
+            <GenrePicker
+              value={editGenre || null}
+              genres={genres}
+              onChange={(v) => setEditGenre(v ?? '')}
+              onAddGenre={addGenre}
+            />
+          )}
           <div className="tag-editor">
             {editTags.map((tag) => (
               <span key={tag} className="tag">
@@ -259,7 +267,10 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
           </div>
 
           <span className="task-title">{task.title}</span>
-          {task.genre && <span className="task-genre">{task.genre}</span>}
+          {(() => {
+            const displayGenre = isRoot ? task.genre : findRootTask(task.id, allTasks)?.genre ?? null
+            return displayGenre ? <span className="task-genre">{displayGenre}</span> : null
+          })()}
           {task.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
 
           <div className="task-actions">
