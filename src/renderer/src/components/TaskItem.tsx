@@ -3,6 +3,7 @@ import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useData } from '../context/DataContext'
+import { GenrePicker } from './GenrePicker'
 import type { Task, TaskStatus } from '../types'
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -27,7 +28,7 @@ type Props = {
 }
 
 export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, onEditEnd, onSaveError, expandedIds, onToggleExpand }: Props): JSX.Element {
-  const { updateTask, deleteTask, createTask } = useData()
+  const { updateTask, deleteTask, createTask, genres, addGenre } = useData()
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id })
   const sortableStyle = { transform: CSS.Transform.toString(transform), transition }
@@ -178,11 +179,11 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
             onKeyDown={handleEditKeyDown}
             placeholder="タスク名"
           />
-          <input
-            type="text"
-            value={editGenre}
-            onChange={(e) => setEditGenre(e.target.value)}
-            placeholder="ジャンル（省略可）"
+          <GenrePicker
+            value={editGenre || null}
+            genres={genres}
+            onChange={(v) => setEditGenre(v ?? '')}
+            onAddGenre={addGenre}
           />
           <div className="tag-editor">
             {editTags.map((tag) => (

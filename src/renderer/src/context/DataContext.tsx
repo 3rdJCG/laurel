@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { ulid } from 'ulid'
-import type { Project, Task } from '../types'
+import type { Project, Task, Genre } from '../types'
 import type { ProjectFile, LoadAllResult } from '../../../main/storage/projectStore'
 
 export type LoadError = { filePath: string; message: string }
@@ -11,6 +11,7 @@ type DataContextValue = {
   isLoading: boolean
   error: string | null
   loadErrors: LoadError[]
+  genres: Genre[]
   createProject: (name: string) => Promise<void>
   updateProject: (projectId: string, changes: Partial<Project>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
@@ -19,6 +20,7 @@ type DataContextValue = {
   deleteTask: (projectId: string, taskId: string) => Promise<void>
   saveProjectData: (projectId: string) => Promise<void>
   dismissLoadErrors: () => void
+  addGenre: (name: string) => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -29,6 +31,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loadErrors, setLoadErrors] = useState<LoadError[]>([])
+  const [genres, setGenres] = useState<Genre[]>([])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
@@ -53,6 +56,22 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     } finally {
       setIsLoading(false)
     }
+  }, [])
+
+  useEffect(() => {
+    window.api.invoke('settings:get').then((s) => {
+      const settings = s as { genres?: Genre[] }
+      setGenres(settings.genres ?? [])
+    })
+  }, [])
+
+  const addGenre = useCallback(async (name: string) => {
+    const newGenre: Genre = { name, color: '#6b7280' }
+    setGenres((prev) => {
+      const updated = [...prev, newGenre]
+      window.api.invoke('settings:genres-set', updated)
+      return updated
+    })
   }, [])
 
   useEffect(() => {
@@ -241,6 +260,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         isLoading,
         error,
         loadErrors,
+        genres,
         createProject,
         updateProject,
         deleteProject,
@@ -248,7 +268,8 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         updateTask,
         deleteTask,
         saveProjectData,
-        dismissLoadErrors
+        dismissLoadErrors,
+        addGenre
       }}
     >
       {children}
