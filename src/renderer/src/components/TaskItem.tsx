@@ -49,6 +49,8 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
   const [editTitle, setEditTitle] = useState(task.title)
   const [editGenre, setEditGenre] = useState(task.genre ?? '')
   const [editTags, setEditTags] = useState<string[]>(task.tags)
+  const [editOccurredAt, setEditOccurredAt] = useState(task.occurredAt ?? '')
+  const [editDueAt, setEditDueAt] = useState(task.dueAt ?? '')
   const [newTag, setNewTag] = useState('')
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
   const editTitleRef = useRef<HTMLInputElement>(null)
@@ -68,6 +70,8 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
       setEditTitle(task.title)
       setEditGenre(task.genre ?? '')
       setEditTags(task.tags)
+      setEditOccurredAt(task.occurredAt ?? '')
+      setEditDueAt(task.dueAt ?? '')
       editTitleRef.current?.focus()
     }
   }, [isEditing, task])
@@ -101,7 +105,12 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
     const title = editTitle.trim()
     if (!title) return
     try {
-      const changes: Parameters<typeof updateTask>[2] = { title, tags: editTags }
+      const changes: Parameters<typeof updateTask>[2] = {
+        title,
+        tags: editTags,
+        occurredAt: editOccurredAt || null,
+        dueAt: editDueAt || null
+      }
       if (isRoot) changes.genre = editGenre.trim() || null
       await updateTask(task.projectId, task.id, changes)
     } catch (err) {
@@ -185,49 +194,60 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
             onKeyDown={handleEditKeyDown}
             placeholder="タスク名"
           />
-          {isRoot && (
-            <GenrePicker
-              value={editGenre || null}
-              genres={genres}
-              onChange={(v) => setEditGenre(v ?? '')}
-              onAddGenre={addGenre}
-            />
-          )}
-          <div className="tag-editor">
-            {editTags.map((tag) => (
-              <span key={tag} className="tag">
-                {tag}
-                <button onClick={() => setEditTags(editTags.filter((t) => t !== tag))}>×</button>
-              </span>
-            ))}
-            <div className="tag-input-wrapper">
-              <input
-                type="text"
-                value={newTag}
-                onChange={(e) => { setNewTag(e.target.value); setShowTagSuggestions(true) }}
-                onFocus={() => setShowTagSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag() } if (e.key === 'Escape') setShowTagSuggestions(false) }}
-                placeholder="タグ追加"
+          <div className="task-edit-row">
+            {isRoot && (
+              <GenrePicker
+                value={editGenre || null}
+                genres={genres}
+                onChange={(v) => setEditGenre(v ?? '')}
+                onAddGenre={addGenre}
               />
-              {showTagSuggestions && tagSuggestions.length > 0 && (
-                <ul className="tag-suggestions">
-                  {tagSuggestions.map((tag) => (
-                    <li key={tag}>
-                      <button
-                        onMouseDown={(e) => { e.preventDefault(); setEditTags([...editTags, tag]); setNewTag('') }}
-                      >
-                        {tag}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            )}
+            <div className="tag-editor" style={{ flex: 1 }}>
+              {editTags.map((tag) => (
+                <span key={tag} className="tag">
+                  {tag}
+                  <button onClick={() => setEditTags(editTags.filter((t) => t !== tag))}>×</button>
+                </span>
+              ))}
+              <div className="tag-input-wrapper">
+                <input
+                  type="text"
+                  value={newTag}
+                  onChange={(e) => { setNewTag(e.target.value); setShowTagSuggestions(true) }}
+                  onFocus={() => setShowTagSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag() } if (e.key === 'Escape') setShowTagSuggestions(false) }}
+                  placeholder="タグ追加"
+                />
+                {showTagSuggestions && tagSuggestions.length > 0 && (
+                  <ul className="tag-suggestions">
+                    {tagSuggestions.map((tag) => (
+                      <li key={tag}>
+                        <button
+                          onMouseDown={(e) => { e.preventDefault(); setEditTags([...editTags, tag]); setNewTag('') }}
+                        >
+                          {tag}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
-            <button onClick={handleAddTag}>追加</button>
+            <label className="task-edit-date-label">
+              発生日
+              <input type="date" value={editOccurredAt} onChange={(e) => setEditOccurredAt(e.target.value)} />
+            </label>
+            <label className="task-edit-date-label">
+              期限日
+              <input type="date" value={editDueAt} onChange={(e) => setEditDueAt(e.target.value)} />
+            </label>
           </div>
-          <button onClick={handleEditConfirm}>確定</button>
-          <button onClick={onEditEnd}>キャンセル</button>
+          <div className="task-edit-actions">
+            <button className="btn-confirm" onClick={handleEditConfirm}>確定</button>
+            <button className="btn-cancel" onClick={onEditEnd}>キャンセル</button>
+          </div>
         </div>
       ) : (
         <div className="task-row">
@@ -242,6 +262,15 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
           ) : (
             <span className="expand-toggle-placeholder" />
           )}
+
+          {isRoot && task.genre && (() => {
+            const genreObj = genres.find((g) => g.name === task.genre)
+            const badgeStyle = genreObj ? { backgroundColor: genreObj.color, color: '#fff' } : {}
+            return <span className="task-genre" style={badgeStyle}>{task.genre}</span>
+          })()}
+
+          <span className="task-title">{task.title}</span>
+          {task.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
 
           {/* Status badge */}
           <div className="status-wrapper">
@@ -265,13 +294,13 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
               </div>
             )}
           </div>
-
-          <span className="task-title">{task.title}</span>
-          {(() => {
-            const displayGenre = isRoot ? task.genre : findRootTask(task.id, allTasks)?.genre ?? null
-            return displayGenre ? <span className="task-genre">{displayGenre}</span> : null
+          {(task.occurredAt ?? null) && (
+            <span className="task-date">📅 {task.occurredAt}</span>
+          )}
+          {(task.dueAt ?? null) && (() => {
+            const isOverdue = task.dueAt! < new Date().toISOString().slice(0, 10)
+            return <span className={`task-date${isOverdue ? ' task-date--overdue' : ''}`}>⏰ {task.dueAt}</span>
           })()}
-          {task.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
 
           <div className="task-actions">
             <button onClick={() => onEditStart(task.id)}>編集</button>

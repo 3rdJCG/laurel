@@ -21,4 +21,6 @@ export type Task = {
   tags: string[]
   createdAt: string
   order: number
+  occurredAt: string | null
+  dueAt: string | null
 }

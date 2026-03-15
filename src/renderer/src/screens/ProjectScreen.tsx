@@ -25,7 +25,10 @@ function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] 
 export function ProjectScreen({ projectId }: Props): JSX.Element {
   const { projects, tasksByProject, createTask, updateTask, saveProjectData } = useData()
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem(`laurel:expand:${projectId}`)
+    return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>()
+  })
   const [showCompletedTasks, setShowCompletedTasks] = useState(true)
   const [showAddRootForm, setShowAddRootForm] = useState(false)
   const [rootTaskTitle, setRootTaskTitle] = useState('')
@@ -37,11 +40,12 @@ export function ProjectScreen({ projectId }: Props): JSX.Element {
   const project = projects.find((p) => p.id === projectId)
   const allTasks = tasksByProject[projectId] ?? []
 
-  // Reset filters and expand state when projectId changes
+  // Reset filters and restore expand state when projectId changes
   useEffect(() => {
     setFilterGenre('')
     setFilterTags([])
-    setExpandedIds(new Set())
+    const saved = localStorage.getItem(`laurel:expand:${projectId}`)
+    setExpandedIds(saved ? new Set<string>(JSON.parse(saved)) : new Set<string>())
   }, [projectId])
 
   const handleToggleExpand = (taskId: string): void => {
@@ -49,6 +53,7 @@ export function ProjectScreen({ projectId }: Props): JSX.Element {
       const next = new Set(prev)
       if (next.has(taskId)) next.delete(taskId)
       else next.add(taskId)
+      localStorage.setItem(`laurel:expand:${projectId}`, JSON.stringify([...next]))
       return next
     })
   }

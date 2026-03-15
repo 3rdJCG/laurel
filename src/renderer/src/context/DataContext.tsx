@@ -195,6 +195,8 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         genre: parentId !== null ? null : (inheritFrom?.genre ?? null),
         tags: inheritFrom?.tags ?? [],
         createdAt: new Date().toISOString(),
+        occurredAt: new Date().toISOString().slice(0, 10),
+        dueAt: null,
         order: maxOrder + 1
       }
       const newTasks = [...existing, task]
