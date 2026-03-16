@@ -183,7 +183,7 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
   const hasChildren = childTasks.length > 0
 
   return (
-    <div ref={setNodeRef} style={{ ...sortableStyle, marginLeft: depth * 20 }} className={`task-item task-item--depth-${depth}`}>
+    <div ref={setNodeRef} style={{ ...sortableStyle, '--task-depth': depth } as React.CSSProperties} className={`task-item task-item--depth-${depth}`}>
       {isEditing ? (
         <div className="task-edit-form">
           <input
@@ -251,6 +251,8 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
         </div>
       ) : (
         <div className="task-row">
+          <span className="task-indent-spacer" />
+
           {/* Drag handle */}
           <button className="drag-handle" {...attributes} {...listeners} aria-label="ドラッグ">⠿</button>
 
@@ -263,14 +265,18 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
             <span className="expand-toggle-placeholder" />
           )}
 
-          {isRoot && task.genre && (() => {
-            const genreObj = genres.find((g) => g.name === task.genre)
-            const badgeStyle = genreObj ? { backgroundColor: genreObj.color, color: '#fff' } : {}
-            return <span className="task-genre" style={badgeStyle}>{task.genre}</span>
-          })()}
+          <div className="task-genre-slot">
+            {isRoot && task.genre && (() => {
+              const genreObj = genres.find((g) => g.name === task.genre)
+              const badgeStyle = genreObj ? { backgroundColor: genreObj.color, color: '#fff' } : {}
+              return <span className="task-genre" style={badgeStyle}>{task.genre}</span>
+            })()}
+          </div>
 
-          <span className="task-title">{task.title}</span>
-          {task.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
+          <div className="task-main">
+            <span className="task-title">{task.title}</span>
+            {task.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
+          </div>
 
           {/* Status badge */}
           <div className="status-wrapper">
@@ -294,15 +300,15 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
               </div>
             )}
           </div>
-          {(task.occurredAt ?? null) && (
-            <span className="task-date">📅 {task.occurredAt}</span>
-          )}
-          {(task.dueAt ?? null) && (() => {
-            const isOverdue = task.dueAt! < new Date().toISOString().slice(0, 10)
-            return <span className={`task-date${isOverdue ? ' task-date--overdue' : ''}`}>⏰ {task.dueAt}</span>
-          })()}
 
           <div className="task-actions">
+            {(task.occurredAt ?? null) && (
+              <span className="task-date">📅 {task.occurredAt}</span>
+            )}
+            {(task.dueAt ?? null) && (() => {
+              const isOverdue = task.dueAt! < new Date().toISOString().slice(0, 10)
+              return <span className={`task-date${isOverdue ? ' task-date--overdue' : ''}`}>⏰ {task.dueAt}</span>
+            })()}
             <button onClick={() => onEditStart(task.id)}>編集</button>
             {depth < 5 && (
               <button onClick={() => setShowSubtaskForm(true)}>+ サブタスク</button>
@@ -325,7 +331,7 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
       )}
 
       {showSubtaskForm && (
-        <div className="subtask-form" style={{ marginLeft: 20 }}>
+        <div className="subtask-form" style={{ marginLeft: depth * 12 + 12 }}>
           <input
             ref={subtaskRef}
             type="text"
