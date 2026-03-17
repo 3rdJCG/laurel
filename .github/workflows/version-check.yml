@@ -1,0 +1,40 @@
+name: Version Check
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check version strategy
+        run: |
+          VERSION=$(node -e "process.stdout.write(require('./package.json').version)")
+          BRANCH="${GITHUB_REF_NAME}"
+          echo "Branch: $BRANCH"
+          echo "Version: $VERSION"
+
+          if [ "$BRANCH" = "develop" ]; then
+            if echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$'; then
+              echo "✅ develop version '$VERSION' is valid (must be x.y.z-beta.N)"
+            else
+              echo "❌ develop version '$VERSION' must follow x.y.z-beta.N format"
+              echo "   Run: npm version <next>-beta.1 --no-git-tag-version"
+              exit 1
+            fi
+          fi
+
+          if [ "$BRANCH" = "master" ]; then
+            if echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "✅ master version '$VERSION' is valid (must be x.y.z)"
+            else
+              echo "❌ master version '$VERSION' must not have a pre-release suffix"
+              echo "   Remove the '-beta.N' suffix before merging to master"
+              exit 1
+            fi
+          fi
