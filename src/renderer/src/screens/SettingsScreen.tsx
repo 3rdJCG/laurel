@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useData } from '../context/DataContext'
 import type { Genre } from '../types'
 
@@ -28,12 +31,108 @@ type AppSettings = {
 
 type SettingsTab = 'storage' | 'user' | 'categories'
 
+type SortableGenreItemProps = {
+  genre: Genre
+  openPickerName: string | null
+  pickerRef: React.RefObject<HTMLDivElement>
+  hexInput: string
+  deletingGenre: string | null
+  taskCount: number
+  onSwatchClick: (name: string, color: string) => void
+  onColorChange: (name: string, color: string) => void
+  onHexInput: (name: string, value: string) => void
+  onDeleteRequest: (name: string) => void
+  onDeleteConfirm: (name: string) => void
+  onDeleteCancel: () => void
+}
+
+function SortableGenreItem({
+  genre,
+  openPickerName,
+  pickerRef,
+  hexInput,
+  deletingGenre,
+  taskCount,
+  onSwatchClick,
+  onColorChange,
+  onHexInput,
+  onDeleteRequest,
+  onDeleteConfirm,
+  onDeleteCancel,
+}: SortableGenreItemProps): JSX.Element {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: genre.name })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <li ref={setNodeRef} style={style} className="genre-item">
+      <button className="genre-drag-handle" {...attributes} {...listeners} tabIndex={-1}>⠿</button>
+      <div
+        className="genre-color-swatch-wrapper"
+        ref={openPickerName === genre.name ? pickerRef : undefined}
+      >
+        <button
+          className="genre-color-swatch"
+          style={{ backgroundColor: genre.color }}
+          onClick={() => onSwatchClick(genre.name, genre.color)}
+          title="色を変更"
+        />
+        {openPickerName === genre.name && (
+          <div className="genre-color-picker">
+            <div className="genre-color-palette">
+              {PALETTE.map((color) => (
+                <button
+                  key={color}
+                  className={`genre-palette-swatch${genre.color === color ? ' genre-palette-swatch--active' : ''}`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => {
+                    onColorChange(genre.name, color)
+                    onHexInput(genre.name, color.replace('#', ''))
+                  }}
+                  title={color}
+                />
+              ))}
+            </div>
+            <div className="genre-color-hex-row">
+              <span className="genre-color-hex-prefix">#</span>
+              <input
+                type="text"
+                className="genre-color-hex-input"
+                maxLength={6}
+                value={hexInput}
+                onChange={(e) => onHexInput(genre.name, e.target.value)}
+                placeholder="rrggbb"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      <span className="genre-item-name">{genre.name}</span>
+      <span style={{ flex: 1 }} />
+      {deletingGenre === genre.name ? (
+        <span className="genre-delete-confirm">
+          {taskCount > 0 && (
+            <span>このジャンルを持つタスクが {taskCount} 件あります。</span>
+          )}
+          <button onClick={() => onDeleteConfirm(genre.name)}>削除</button>
+          <button onClick={onDeleteCancel}>キャンセル</button>
+        </span>
+      ) : (
+        <button onClick={() => onDeleteRequest(genre.name)}>🗑️</button>
+      )}
+    </li>
+  )
+}
+
 type Props = {
   registerDirtyChecker: (fn: () => boolean) => void
 }
 
 export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
-  const { tasksByProject } = useData()
+  const { tasksByProject, updateGenres } = useData()
   const [activeTab, setActiveTab] = useState<SettingsTab>('storage')
 
   // Storage tab state
@@ -160,8 +259,18 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     setSuccessMsg(null)
     await window.api.invoke('settings:genres-set', draftGenres)
     setSavedGenres([...draftGenres])
+    updateGenres([...draftGenres])
     setSuccessMsg('保存しました')
     setSaving(false)
+  }
+
+  const handleGenreDragEnd = (event: DragEndEvent): void => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = draftGenres.findIndex((g) => g.name === active.id)
+    const newIndex = draftGenres.findIndex((g) => g.name === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    setDraftGenres(arrayMove(draftGenres, oldIndex, newIndex))
   }
 
   const handleDiscard = (): void => {
@@ -317,65 +426,29 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
           <div className="settings-tab-body">
             <div className="settings-section">
               <label>ジャンル管理</label>
-              <ul className="genre-list">
-                {draftGenres.map((genre) => (
-                  <li key={genre.name} className="genre-item">
-                    <div
-                      className="genre-color-swatch-wrapper"
-                      ref={openPickerName === genre.name ? pickerRef : undefined}
-                    >
-                      <button
-                        className="genre-color-swatch"
-                        style={{ backgroundColor: genre.color }}
-                        onClick={() => handleSwatchClick(genre.name, genre.color)}
-                        title="色を変更"
+              <DndContext collisionDetection={closestCenter} onDragEnd={handleGenreDragEnd}>
+                <SortableContext items={draftGenres.map((g) => g.name)} strategy={verticalListSortingStrategy}>
+                  <ul className="genre-list">
+                    {draftGenres.map((genre) => (
+                      <SortableGenreItem
+                        key={genre.name}
+                        genre={genre}
+                        openPickerName={openPickerName}
+                        pickerRef={pickerRef}
+                        hexInput={hexInput}
+                        deletingGenre={deletingGenre}
+                        taskCount={getTaskCountForGenre(genre.name)}
+                        onSwatchClick={handleSwatchClick}
+                        onColorChange={handleColorChange}
+                        onHexInput={handleHexInput}
+                        onDeleteRequest={(name) => setDeletingGenre(name)}
+                        onDeleteConfirm={handleDeleteGenre}
+                        onDeleteCancel={() => setDeletingGenre(null)}
                       />
-                      {openPickerName === genre.name && (
-                        <div className="genre-color-picker">
-                          <div className="genre-color-palette">
-                            {PALETTE.map((color) => (
-                              <button
-                                key={color}
-                                className={`genre-palette-swatch${genre.color === color ? ' genre-palette-swatch--active' : ''}`}
-                                style={{ backgroundColor: color }}
-                                onClick={() => {
-                                  handleColorChange(genre.name, color)
-                                  setHexInput(color.replace('#', ''))
-                                }}
-                                title={color}
-                              />
-                            ))}
-                          </div>
-                          <div className="genre-color-hex-row">
-                            <span className="genre-color-hex-prefix">#</span>
-                            <input
-                              type="text"
-                              className="genre-color-hex-input"
-                              maxLength={6}
-                              value={hexInput}
-                              onChange={(e) => handleHexInput(genre.name, e.target.value)}
-                              placeholder="rrggbb"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <span className="genre-item-name">{genre.name}</span>
-                    <span style={{ flex: 1 }} />
-                    {deletingGenre === genre.name ? (
-                      <span className="genre-delete-confirm">
-                        {getTaskCountForGenre(genre.name) > 0 && (
-                          <span>このジャンルを持つタスクが {getTaskCountForGenre(genre.name)} 件あります。</span>
-                        )}
-                        <button onClick={() => handleDeleteGenre(genre.name)}>削除</button>
-                        <button onClick={() => setDeletingGenre(null)}>キャンセル</button>
-                      </span>
-                    ) : (
-                      <button onClick={() => setDeletingGenre(genre.name)}>🗑️</button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
               <div className="genre-add-row">
                 <input
                   type="text"

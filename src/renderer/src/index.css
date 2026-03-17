@@ -939,6 +939,24 @@ hr {
   gap: 8px;
 }
 
+.genre-drag-handle {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: grab;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.genre-drag-handle:hover {
+  color: #888;
+}
+
+.genre-drag-handle:active {
+  cursor: grabbing;
+}
 
 .genre-item span {
   font-size: 14px;

@@ -21,6 +21,7 @@ type DataContextValue = {
   saveProjectData: (projectId: string) => Promise<void>
   dismissLoadErrors: () => void
   addGenre: (name: string) => Promise<void>
+  updateGenres: (genres: Genre[]) => void
   listComments: (projectId: string, taskId: string) => Promise<Comment[]>
   addComment: (projectId: string, data: Omit<Comment, 'id' | 'createdAt' | 'authorName' | 'authorEmail'>) => Promise<Comment>
   listIssues: (projectId: string, taskId: string) => Promise<Issue[]>
@@ -78,6 +79,10 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       window.api.invoke('settings:genres-set', updated)
       return updated
     })
+  }, [])
+
+  const updateGenres = useCallback((genres: Genre[]) => {
+    setGenres(genres)
   }, [])
 
   useEffect(() => {
@@ -323,6 +328,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         saveProjectData,
         dismissLoadErrors,
         addGenre,
+        updateGenres,
         listComments,
         addComment,
         listIssues,
