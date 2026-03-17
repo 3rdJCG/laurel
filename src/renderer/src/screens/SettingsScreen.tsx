@@ -27,9 +27,10 @@ type AppSettings = {
   genres: Genre[]
   name: string
   mailAddress: string
+  updateChannel: 'latest' | 'beta'
 }
 
-type SettingsTab = 'storage' | 'user' | 'categories'
+type SettingsTab = 'storage' | 'user' | 'categories' | 'update'
 
 type SortableGenreItemProps = {
   genre: Genre
@@ -145,6 +146,10 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const [savedName, setSavedName] = useState('')
   const [savedMail, setSavedMail] = useState('')
 
+  // Update tab state
+  const [draftChannel, setDraftChannel] = useState<'latest' | 'beta'>('latest')
+  const [savedChannel, setSavedChannel] = useState<'latest' | 'beta'>('latest')
+
   // Categories tab state
   const [draftGenres, setDraftGenres] = useState<Genre[]>([])
   const [savedGenres, setSavedGenres] = useState<Genre[]>([])
@@ -163,6 +168,7 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const storageIsDirty = draftDataDir !== savedDataDir
   const userIsDirty = draftName !== savedName || draftMail !== savedMail
   const categoriesIsDirty = JSON.stringify(draftGenres) !== JSON.stringify(savedGenres)
+  const updateIsDirty = draftChannel !== savedChannel
 
   useEffect(() => {
     loadSettings()
@@ -193,6 +199,8 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     setDraftMail(settings.mailAddress ?? '')
     setSavedGenres(settings.genres ?? [])
     setDraftGenres(settings.genres ?? [])
+    setSavedChannel(settings.updateChannel ?? 'latest')
+    setDraftChannel(settings.updateChannel ?? 'latest')
     setErrorMsg(null)
     setSuccessMsg(null)
   }
@@ -201,6 +209,7 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     const currentIsDirty =
       activeTab === 'storage' ? storageIsDirty :
       activeTab === 'user' ? userIsDirty :
+      activeTab === 'update' ? updateIsDirty :
       categoriesIsDirty
 
     if (currentIsDirty) {
@@ -210,6 +219,7 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
       setDraftName(savedName)
       setDraftMail(savedMail)
       setDraftGenres(savedGenres)
+      setDraftChannel(savedChannel)
     }
     setErrorMsg(null)
     setSuccessMsg(null)
@@ -252,6 +262,17 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     setSaving(false)
   }
 
+  // Update tab handlers
+  const handleUpdateSave = async (): Promise<void> => {
+    setSaving(true)
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    await window.api.invoke('settings:update-channel-set', draftChannel)
+    setSavedChannel(draftChannel)
+    setSuccessMsg('保存しました')
+    setSaving(false)
+  }
+
   // Categories tab handlers
   const handleCategoriesSave = async (): Promise<void> => {
     setSaving(true)
@@ -278,6 +299,7 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     setDraftName(savedName)
     setDraftMail(savedMail)
     setDraftGenres([...savedGenres])
+    setDraftChannel(savedChannel)
     setErrorMsg(null)
     setSuccessMsg(null)
   }
@@ -323,11 +345,13 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const currentIsDirty =
     activeTab === 'storage' ? storageIsDirty :
     activeTab === 'user' ? userIsDirty :
+    activeTab === 'update' ? updateIsDirty :
     categoriesIsDirty
 
   const handleSave = (): void => {
     if (activeTab === 'storage') handleStorageSave()
     else if (activeTab === 'user') handleUserSave()
+    else if (activeTab === 'update') handleUpdateSave()
     else handleCategoriesSave()
   }
 
@@ -354,6 +378,12 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
           onClick={() => handleTabChange('categories')}
         >
           カテゴリ管理
+        </button>
+        <button
+          className={`repo-tab ${activeTab === 'update' ? 'repo-tab--active' : ''}`}
+          onClick={() => handleTabChange('update')}
+        >
+          アップデート
         </button>
       </div>
 
@@ -466,6 +496,49 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
               <p className="settings-placeholder-text">タグ管理は近日追加予定です</p>
             </div>
 
+            <div className="settings-tab-footer">
+              <button onClick={handleSave} disabled={saving || !currentIsDirty}>
+                {saving ? '保存中...' : '保存'}
+              </button>
+              <button onClick={handleDiscard} disabled={!currentIsDirty}>
+                破棄
+              </button>
+              {errorMsg && <span className="error-message">{errorMsg}</span>}
+              {successMsg && <span className="success-message">{successMsg}</span>}
+            </div>
+          </div>
+        )}
+        {/* Update tab */}
+        {activeTab === 'update' && (
+          <div className="settings-tab-body">
+            <div className="settings-section">
+              <label>アップデートチャンネル</label>
+              <div className="settings-radio-group">
+                <label className="settings-radio-label">
+                  <input
+                    type="radio"
+                    name="updateChannel"
+                    value="latest"
+                    checked={draftChannel === 'latest'}
+                    onChange={() => setDraftChannel('latest')}
+                  />
+                  安定版（Stable）
+                </label>
+                <label className="settings-radio-label">
+                  <input
+                    type="radio"
+                    name="updateChannel"
+                    value="beta"
+                    checked={draftChannel === 'beta'}
+                    onChange={() => setDraftChannel('beta')}
+                  />
+                  テスター版（Beta）
+                </label>
+              </div>
+              <p className="settings-hint">
+                テスター版では最新のベータビルドを受け取れます。安定版より不安定な場合があります。
+              </p>
+            </div>
             <div className="settings-tab-footer">
               <button onClick={handleSave} disabled={saving || !currentIsDirty}>
                 {saving ? '保存中...' : '保存'}

@@ -1,0 +1,3 @@
+{
+  "markdown.validate.ignoredLinks": ["node_modules/**", "../../releases", "../../releases/**", "./README.md", "./README.ja.md", "README.ja.md", "./docs/PRIVACY.md", "docs/PRIVACY.md"]
+}

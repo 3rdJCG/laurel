@@ -5,6 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { loadWindowState, saveWindowState } from './windowState'
 import { setupCsp } from './csp'
 import { getSettings, saveSettings, type Genre } from './storage/settings'
+import { setupAutoUpdater, setUpdaterChannel } from './updater'
 import {
   loadAll,
   loadOne,
@@ -179,6 +180,13 @@ function setupIpc(): void {
     }
   )
 
+  ipcMain.handle('settings:update-channel-set', (_event, channel: 'latest' | 'beta') => {
+    const current = getSettings()
+    saveSettings({ ...current, updateChannel: channel })
+    setUpdaterChannel(channel)
+    return { ok: true }
+  })
+
   ipcMain.handle('app:get-version', () => {
     return app.getVersion()
   })
@@ -343,6 +351,9 @@ app.whenReady().then(() => {
   setupCsp(is.dev)
   setupIpc()
   createWindow()
+  if (!is.dev) {
+    setupAutoUpdater(mainWindow!)
+  }
 
   const { dataDir } = getSettings()
   initWatcher(dataDir)

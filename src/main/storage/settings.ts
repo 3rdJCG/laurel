@@ -12,6 +12,7 @@ export type AppSettings = {
   genres: Genre[]
   name: string
   mailAddress: string
+  updateChannel: 'latest' | 'beta'
 }
 
 const DEFAULT_COLOR = '#6b7280'
@@ -27,20 +28,21 @@ export function getSettings(): AppSettings {
   try {
     if (fs.existsSync(settingsPath)) {
       const raw = fs.readFileSync(settingsPath, 'utf-8')
-      const parsed = JSON.parse(raw) as { dataDir?: string; genres?: (Genre | string)[]; name?: string; mailAddress?: string }
+      const parsed = JSON.parse(raw) as { dataDir?: string; genres?: (Genre | string)[]; name?: string; mailAddress?: string; updateChannel?: 'latest' | 'beta' }
       return {
         dataDir: parsed.dataDir ?? defaultDataDir(),
         genres: (parsed.genres ?? []).map((g) =>
           typeof g === 'string' ? { name: g, color: DEFAULT_COLOR } : g
         ),
         name: parsed.name ?? '',
-        mailAddress: parsed.mailAddress ?? ''
+        mailAddress: parsed.mailAddress ?? '',
+        updateChannel: parsed.updateChannel ?? 'latest'
       }
     }
   } catch {
     // fall through to default
   }
-  return { dataDir: defaultDataDir(), genres: [], name: '', mailAddress: '' }
+  return { dataDir: defaultDataDir(), genres: [], name: '', mailAddress: '', updateChannel: 'latest' }
 }
 
 export function saveSettings(settings: AppSettings): void {
