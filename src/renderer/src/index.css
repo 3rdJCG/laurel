@@ -897,7 +897,7 @@ hr {
 .settings-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .settings-section label {
@@ -938,6 +938,7 @@ hr {
   border-radius: 4px;
   gap: 8px;
 }
+
 
 .genre-item span {
   font-size: 14px;
@@ -1736,4 +1737,29 @@ hr {
 
 .settings-screen {
   max-width: 600px;
+}
+
+.settings-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settings-tab-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  margin-top: 8px;
+  border-top: 1px solid #2a2a2a;
+}
+
+.settings-section--placeholder {
+  opacity: 0.5;
+}
+
+.settings-placeholder-text {
+  font-size: 13px;
+  color: #888;
+  margin: 0;
 }

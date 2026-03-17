@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { DataProvider, useData } from './context/DataContext'
 import { HomeScreen } from './screens/HomeScreen'
 import { ProjectScreen } from './screens/ProjectScreen'
@@ -11,6 +11,15 @@ function AppContent(): JSX.Element {
   const { projects } = useData()
   const [currentView, setCurrentView] = useState<View>({ type: 'home' })
   const [isAboutOpen, setIsAboutOpen] = useState(false)
+  const settingsIsDirtyRef = useRef<() => boolean>(() => false)
+
+  const handleNavigate = (view: View): void => {
+    if (currentView.type === 'settings' && settingsIsDirtyRef.current()) {
+      const ok = window.confirm('設定の変更が保存されていません。破棄して移動しますか？')
+      if (!ok) return
+    }
+    setCurrentView(view)
+  }
 
   const renderMain = (): JSX.Element => {
     if (currentView.type === 'project') {
@@ -36,7 +45,7 @@ function AppContent(): JSX.Element {
       )
     }
     if (currentView.type === 'settings') {
-      return <SettingsScreen />
+      return <SettingsScreen registerDirtyChecker={(fn) => { settingsIsDirtyRef.current = fn }} />
     }
     return (
       <HomeScreen
@@ -50,7 +59,7 @@ function AppContent(): JSX.Element {
       <Sidebar
         currentView={currentView}
         projects={projects}
-        onNavigate={setCurrentView}
+        onNavigate={handleNavigate}
         onAboutOpen={() => setIsAboutOpen(true)}
       />
       <main className="app-main">

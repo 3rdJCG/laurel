@@ -26,24 +26,52 @@ type AppSettings = {
   mailAddress: string
 }
 
-export function SettingsScreen(): JSX.Element {
+type SettingsTab = 'storage' | 'user' | 'categories'
+
+type Props = {
+  registerDirtyChecker: (fn: () => boolean) => void
+}
+
+export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const { tasksByProject } = useData()
-  const [dataDir, setDataDir] = useState('')
-  const [userName, setUserName] = useState('')
-  const [mailAddress, setMailAddress] = useState('')
-  const [genres, setGenres] = useState<Genre[]>([])
+  const [activeTab, setActiveTab] = useState<SettingsTab>('storage')
+
+  // Storage tab state
+  const [draftDataDir, setDraftDataDir] = useState('')
+  const [savedDataDir, setSavedDataDir] = useState('')
+
+  // User tab state
+  const [draftName, setDraftName] = useState('')
+  const [draftMail, setDraftMail] = useState('')
+  const [savedName, setSavedName] = useState('')
+  const [savedMail, setSavedMail] = useState('')
+
+  // Categories tab state
+  const [draftGenres, setDraftGenres] = useState<Genre[]>([])
+  const [savedGenres, setSavedGenres] = useState<Genre[]>([])
   const [newGenre, setNewGenre] = useState('')
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
   const [deletingGenre, setDeletingGenre] = useState<string | null>(null)
   const [openPickerName, setOpenPickerName] = useState<string | null>(null)
   const [hexInput, setHexInput] = useState('')
   const pickerRef = useRef<HTMLDivElement>(null)
 
+  // UI state
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  // Dirty flags
+  const storageIsDirty = draftDataDir !== savedDataDir
+  const userIsDirty = draftName !== savedName || draftMail !== savedMail
+  const categoriesIsDirty = JSON.stringify(draftGenres) !== JSON.stringify(savedGenres)
+
   useEffect(() => {
     loadSettings()
   }, [])
+
+  useEffect(() => {
+    registerDirtyChecker(() => storageIsDirty || userIsDirty || categoriesIsDirty)
+  }, [storageIsDirty, userIsDirty, categoriesIsDirty])
 
   useEffect(() => {
     if (!openPickerName) return
@@ -58,64 +86,107 @@ export function SettingsScreen(): JSX.Element {
 
   const loadSettings = async (): Promise<void> => {
     const settings = (await window.api.invoke('settings:get')) as AppSettings
-    setDataDir(settings.dataDir)
-    setUserName(settings.name ?? '')
-    setMailAddress(settings.mailAddress ?? '')
-    setGenres(settings.genres ?? [])
+    setSavedDataDir(settings.dataDir)
+    setDraftDataDir(settings.dataDir)
+    setSavedName(settings.name ?? '')
+    setDraftName(settings.name ?? '')
+    setSavedMail(settings.mailAddress ?? '')
+    setDraftMail(settings.mailAddress ?? '')
+    setSavedGenres(settings.genres ?? [])
+    setDraftGenres(settings.genres ?? [])
     setErrorMsg(null)
+    setSuccessMsg(null)
   }
 
+  const handleTabChange = (next: SettingsTab): void => {
+    const currentIsDirty =
+      activeTab === 'storage' ? storageIsDirty :
+      activeTab === 'user' ? userIsDirty :
+      categoriesIsDirty
+
+    if (currentIsDirty) {
+      const ok = window.confirm('このタブの変更が保存されていません。破棄して移動しますか？')
+      if (!ok) return
+      setDraftDataDir(savedDataDir)
+      setDraftName(savedName)
+      setDraftMail(savedMail)
+      setDraftGenres(savedGenres)
+    }
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    setActiveTab(next)
+  }
+
+  // Storage tab handlers
   const handleSelectFolder = async (): Promise<void> => {
     const selected = (await window.api.invoke('dialog:open-folder')) as string | null
-    if (selected) setDataDir(selected)
+    if (selected) setDraftDataDir(selected)
   }
 
-  const saveDataDir = async (newDataDir: string): Promise<boolean> => {
-    const result = (await window.api.invoke('settings:set', { dataDir: newDataDir })) as {
+  const handleStorageSave = async (): Promise<void> => {
+    setSaving(true)
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    const result = (await window.api.invoke('settings:set', { dataDir: draftDataDir })) as {
       ok: boolean
       error?: { code: string; message: string }
     }
     if (!result.ok) {
       setErrorMsg(result.error?.message ?? '保存に失敗しました')
-      await loadSettings()
-      return false
+      setDraftDataDir(savedDataDir)
+    } else {
+      setSavedDataDir(draftDataDir)
+      setSuccessMsg('保存しました')
     }
-    return true
+    setSaving(false)
   }
 
-  const saveUserInfo = async (): Promise<void> => {
-    await window.api.invoke('settings:user-info-set', { name: userName, mailAddress })
-  }
-
-  const saveGenres = async (updated: Genre[]): Promise<void> => {
-    setGenres(updated)
-    await window.api.invoke('settings:genres-set', updated)
-  }
-
-  const handleSave = async (): Promise<void> => {
+  // User tab handlers
+  const handleUserSave = async (): Promise<void> => {
     setSaving(true)
     setErrorMsg(null)
     setSuccessMsg(null)
-    const ok = await saveDataDir(dataDir)
-    if (ok) await saveUserInfo()
+    await window.api.invoke('settings:user-info-set', { name: draftName, mailAddress: draftMail })
+    setSavedName(draftName)
+    setSavedMail(draftMail)
+    setSuccessMsg('保存しました')
     setSaving(false)
-    if (ok) setSuccessMsg('設定を保存しました')
   }
 
-  const handleAddGenre = async (): Promise<void> => {
+  // Categories tab handlers
+  const handleCategoriesSave = async (): Promise<void> => {
+    setSaving(true)
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    await window.api.invoke('settings:genres-set', draftGenres)
+    setSavedGenres([...draftGenres])
+    setSuccessMsg('保存しました')
+    setSaving(false)
+  }
+
+  const handleDiscard = (): void => {
+    setDraftDataDir(savedDataDir)
+    setDraftName(savedName)
+    setDraftMail(savedMail)
+    setDraftGenres([...savedGenres])
+    setErrorMsg(null)
+    setSuccessMsg(null)
+  }
+
+  const handleAddGenre = (): void => {
     const name = newGenre.trim()
-    if (!name || genres.some((g) => g.name === name)) return
+    if (!name || draftGenres.some((g) => g.name === name)) return
     setNewGenre('')
-    await saveGenres([...genres, { name, color: DEFAULT_COLOR }])
+    setDraftGenres([...draftGenres, { name, color: DEFAULT_COLOR }])
   }
 
-  const handleDeleteGenre = async (name: string): Promise<void> => {
+  const handleDeleteGenre = (name: string): void => {
     setDeletingGenre(null)
-    await saveGenres(genres.filter((g) => g.name !== name))
+    setDraftGenres(draftGenres.filter((g) => g.name !== name))
   }
 
-  const handleColorChange = async (name: string, color: string): Promise<void> => {
-    await saveGenres(genres.map((g) => (g.name === name ? { ...g, color } : g)))
+  const handleColorChange = (name: string, color: string): void => {
+    setDraftGenres(draftGenres.map((g) => (g.name === name ? { ...g, color } : g)))
   }
 
   const handleSwatchClick = (name: string, currentColor: string): void => {
@@ -127,10 +198,10 @@ export function SettingsScreen(): JSX.Element {
     }
   }
 
-  const handleHexInput = async (name: string, value: string): Promise<void> => {
+  const handleHexInput = (name: string, value: string): void => {
     setHexInput(value)
     if (/^[0-9a-fA-F]{6}$/.test(value)) {
-      await handleColorChange(name, `#${value}`)
+      handleColorChange(name, `#${value}`)
     }
   }
 
@@ -140,124 +211,200 @@ export function SettingsScreen(): JSX.Element {
       .filter((t) => t.genre === name).length
   }
 
+  const currentIsDirty =
+    activeTab === 'storage' ? storageIsDirty :
+    activeTab === 'user' ? userIsDirty :
+    categoriesIsDirty
+
+  const handleSave = (): void => {
+    if (activeTab === 'storage') handleStorageSave()
+    else if (activeTab === 'user') handleUserSave()
+    else handleCategoriesSave()
+  }
+
   return (
     <div className="settings-screen">
       <h2>設定</h2>
 
-      <div className="settings-section">
-        <label>データ保存先</label>
-        <div className="settings-path-row">
-          <input
-            type="text"
-            value={dataDir}
-            onChange={(e) => setDataDir(e.target.value)}
-            placeholder="保存先フォルダのパス"
-          />
-          <button onClick={handleSelectFolder}>フォルダを選択</button>
-        </div>
-        {errorMsg && <p className="error-message">{errorMsg}</p>}
-      </div>
-
-      <div className="settings-section">
-        <label>ユーザー情報</label>
-        <div className="settings-field">
-          <label>表示名</label>
-          <input
-            type="text"
-            value={userName}
-            onChange={(e) => setUserName(e.target.value)}
-            placeholder="表示名"
-          />
-        </div>
-        <div className="settings-field">
-          <label>メールアドレス</label>
-          <input
-            type="email"
-            value={mailAddress}
-            onChange={(e) => setMailAddress(e.target.value)}
-            placeholder="example@example.com"
-          />
-        </div>
-      </div>
-
-      <div className="settings-section">
-        <label>ジャンル管理</label>
-        <ul className="genre-list">
-          {genres.map((genre) => (
-            <li key={genre.name} className="genre-item">
-              <div
-                className="genre-color-swatch-wrapper"
-                ref={openPickerName === genre.name ? pickerRef : undefined}
-              >
-                <button
-                  className="genre-color-swatch"
-                  style={{ backgroundColor: genre.color }}
-                  onClick={() => handleSwatchClick(genre.name, genre.color)}
-                  title="色を変更"
-                />
-                {openPickerName === genre.name && (
-                  <div className="genre-color-picker">
-                    <div className="genre-color-palette">
-                      {PALETTE.map((color) => (
-                        <button
-                          key={color}
-                          className={`genre-palette-swatch${genre.color === color ? ' genre-palette-swatch--active' : ''}`}
-                          style={{ backgroundColor: color }}
-                          onClick={() => {
-                            handleColorChange(genre.name, color)
-                            setHexInput(color.replace('#', ''))
-                          }}
-                          title={color}
-                        />
-                      ))}
-                    </div>
-                    <div className="genre-color-hex-row">
-                      <span className="genre-color-hex-prefix">#</span>
-                      <input
-                        type="text"
-                        className="genre-color-hex-input"
-                        maxLength={6}
-                        value={hexInput}
-                        onChange={(e) => handleHexInput(genre.name, e.target.value)}
-                        placeholder="rrggbb"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <span className="genre-item-name">{genre.name}</span>
-              <span style={{ flex: 1 }} />
-              {deletingGenre === genre.name ? (
-                <span className="genre-delete-confirm">
-                  {getTaskCountForGenre(genre.name) > 0 && (
-                    <span>このジャンルを持つタスクが {getTaskCountForGenre(genre.name)} 件あります。</span>
-                  )}
-                  <button onClick={() => handleDeleteGenre(genre.name)}>削除</button>
-                  <button onClick={() => setDeletingGenre(null)}>キャンセル</button>
-                </span>
-              ) : (
-                <button onClick={() => setDeletingGenre(genre.name)}>🗑️</button>
-              )}
-            </li>
-          ))}
-        </ul>
-        <div className="genre-add-row">
-          <input
-            type="text"
-            value={newGenre}
-            onChange={(e) => setNewGenre(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAddGenre() }}
-            placeholder="ジャンル名"
-          />
-          <button onClick={handleAddGenre}>追加</button>
-        </div>
-      </div>
-
-      <div className="settings-footer">
-        <button onClick={handleSave} disabled={saving}>
-          {saving ? '保存中...' : '変更を保存'}
+      {/* Tab bar */}
+      <div className="repo-tabs">
+        <button
+          className={`repo-tab ${activeTab === 'storage' ? 'repo-tab--active' : ''}`}
+          onClick={() => handleTabChange('storage')}
+        >
+          データ保存先
         </button>
-        {successMsg && <p className="success-message">{successMsg}</p>}
+        <button
+          className={`repo-tab ${activeTab === 'user' ? 'repo-tab--active' : ''}`}
+          onClick={() => handleTabChange('user')}
+        >
+          ユーザー情報
+        </button>
+        <button
+          className={`repo-tab ${activeTab === 'categories' ? 'repo-tab--active' : ''}`}
+          onClick={() => handleTabChange('categories')}
+        >
+          カテゴリ管理
+        </button>
+      </div>
+
+      <div className="repo-tab-content">
+        {/* Storage tab */}
+        {activeTab === 'storage' && (
+          <div className="settings-tab-body">
+            <div className="settings-section">
+              <div className="settings-path-row">
+                <input
+                  type="text"
+                  value={draftDataDir}
+                  onChange={(e) => setDraftDataDir(e.target.value)}
+                  placeholder="保存先フォルダのパス"
+                />
+                <button onClick={handleSelectFolder}>フォルダを選択</button>
+              </div>
+            </div>
+            <div className="settings-tab-footer">
+              <button onClick={handleSave} disabled={saving || !currentIsDirty}>
+                {saving ? '保存中...' : '保存'}
+              </button>
+              <button onClick={handleDiscard} disabled={!currentIsDirty}>
+                破棄
+              </button>
+              {errorMsg && <span className="error-message">{errorMsg}</span>}
+              {successMsg && <span className="success-message">{successMsg}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* User tab */}
+        {activeTab === 'user' && (
+          <div className="settings-tab-body">
+            <div className="settings-section">
+              <div className="settings-field">
+                <label>表示名</label>
+                <input
+                  type="text"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  placeholder="表示名"
+                />
+              </div>
+              <div className="settings-field">
+                <label>メールアドレス</label>
+                <input
+                  type="email"
+                  value={draftMail}
+                  onChange={(e) => setDraftMail(e.target.value)}
+                  placeholder="example@example.com"
+                />
+              </div>
+            </div>
+            <div className="settings-tab-footer">
+              <button onClick={handleSave} disabled={saving || !currentIsDirty}>
+                {saving ? '保存中...' : '保存'}
+              </button>
+              <button onClick={handleDiscard} disabled={!currentIsDirty}>
+                破棄
+              </button>
+              {errorMsg && <span className="error-message">{errorMsg}</span>}
+              {successMsg && <span className="success-message">{successMsg}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Categories tab */}
+        {activeTab === 'categories' && (
+          <div className="settings-tab-body">
+            <div className="settings-section">
+              <label>ジャンル管理</label>
+              <ul className="genre-list">
+                {draftGenres.map((genre) => (
+                  <li key={genre.name} className="genre-item">
+                    <div
+                      className="genre-color-swatch-wrapper"
+                      ref={openPickerName === genre.name ? pickerRef : undefined}
+                    >
+                      <button
+                        className="genre-color-swatch"
+                        style={{ backgroundColor: genre.color }}
+                        onClick={() => handleSwatchClick(genre.name, genre.color)}
+                        title="色を変更"
+                      />
+                      {openPickerName === genre.name && (
+                        <div className="genre-color-picker">
+                          <div className="genre-color-palette">
+                            {PALETTE.map((color) => (
+                              <button
+                                key={color}
+                                className={`genre-palette-swatch${genre.color === color ? ' genre-palette-swatch--active' : ''}`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => {
+                                  handleColorChange(genre.name, color)
+                                  setHexInput(color.replace('#', ''))
+                                }}
+                                title={color}
+                              />
+                            ))}
+                          </div>
+                          <div className="genre-color-hex-row">
+                            <span className="genre-color-hex-prefix">#</span>
+                            <input
+                              type="text"
+                              className="genre-color-hex-input"
+                              maxLength={6}
+                              value={hexInput}
+                              onChange={(e) => handleHexInput(genre.name, e.target.value)}
+                              placeholder="rrggbb"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <span className="genre-item-name">{genre.name}</span>
+                    <span style={{ flex: 1 }} />
+                    {deletingGenre === genre.name ? (
+                      <span className="genre-delete-confirm">
+                        {getTaskCountForGenre(genre.name) > 0 && (
+                          <span>このジャンルを持つタスクが {getTaskCountForGenre(genre.name)} 件あります。</span>
+                        )}
+                        <button onClick={() => handleDeleteGenre(genre.name)}>削除</button>
+                        <button onClick={() => setDeletingGenre(null)}>キャンセル</button>
+                      </span>
+                    ) : (
+                      <button onClick={() => setDeletingGenre(genre.name)}>🗑️</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <div className="genre-add-row">
+                <input
+                  type="text"
+                  value={newGenre}
+                  onChange={(e) => setNewGenre(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddGenre() }}
+                  placeholder="ジャンル名"
+                />
+                <button onClick={handleAddGenre}>追加</button>
+              </div>
+            </div>
+
+            <div className="settings-section settings-section--placeholder">
+              <label>タグ管理</label>
+              <p className="settings-placeholder-text">タグ管理は近日追加予定です</p>
+            </div>
+
+            <div className="settings-tab-footer">
+              <button onClick={handleSave} disabled={saving || !currentIsDirty}>
+                {saving ? '保存中...' : '保存'}
+              </button>
+              <button onClick={handleDiscard} disabled={!currentIsDirty}>
+                破棄
+              </button>
+              {errorMsg && <span className="error-message">{errorMsg}</span>}
+              {successMsg && <span className="success-message">{successMsg}</span>}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
