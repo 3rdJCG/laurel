@@ -5,7 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { loadWindowState, saveWindowState } from './windowState'
 import { setupCsp } from './csp'
 import { getSettings, saveSettings, type Genre } from './storage/settings'
-import { setupAutoUpdater, setUpdaterChannel } from './updater'
+import { setupAutoUpdater, setUpdaterChannel, checkForUpdatesManually, installUpdate } from './updater'
 import {
   loadAll,
   loadOne,
@@ -185,6 +185,14 @@ function setupIpc(): void {
     saveSettings({ ...current, updateChannel: channel })
     setUpdaterChannel(channel)
     return { ok: true }
+  })
+
+  ipcMain.handle('updater:check', () => {
+    checkForUpdatesManually()
+  })
+
+  ipcMain.handle('updater:install', () => {
+    installUpdate()
   })
 
   ipcMain.handle('app:get-version', () => {
