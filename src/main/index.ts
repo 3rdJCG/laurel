@@ -4,7 +4,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { loadWindowState, saveWindowState } from './windowState'
 import { setupCsp } from './csp'
-import { getSettings, saveSettings } from './storage/settings'
+import { getSettings, saveSettings, type Genre } from './storage/settings'
+import { setupAutoUpdater, setUpdaterChannel } from './updater'
 import {
   loadAll,
   loadOne,
@@ -15,6 +16,9 @@ import {
 } from './storage/projectStore'
 import { startWatcher, stopWatcher } from './storage/watcher'
 import * as fs from 'fs'
+import * as path from 'path'
+import { ulid } from 'ulid'
+import type { Comment, Issue, IssueComment } from '../renderer/src/types'
 
 let mainWindow: BrowserWindow | null = null
 const selfWriting = new Set<string>()
@@ -89,6 +93,16 @@ function setupIpc(): void {
     (_event, { projectId, data }: { projectId: string; data: ProjectFile }) => {
       const { dataDir } = getSettings()
       try {
+        // Preserve existing comments when not provided
+        if (!data.comments) {
+          const existing = loadOne(path.join(dataDir, `${projectId}.json`))
+          data.comments = existing?.comments ?? []
+        }
+        // Preserve existing issues when not provided
+        if (!data.issues) {
+          const existing = loadOne(path.join(dataDir, `${projectId}.json`))
+          data.issues = existing?.issues ?? []
+        }
         saveProject(dataDir, projectId, data, selfWriting)
         return { ok: true }
       } catch (err) {
@@ -151,6 +165,28 @@ function setupIpc(): void {
     return { ok: true }
   })
 
+  ipcMain.handle('settings:genres-set', (_event, genres: Genre[]) => {
+    const current = getSettings()
+    saveSettings({ ...current, genres })
+    return { ok: true }
+  })
+
+  ipcMain.handle(
+    'settings:user-info-set',
+    (_event, { name, mailAddress }: { name: string; mailAddress: string }) => {
+      const current = getSettings()
+      saveSettings({ ...current, name, mailAddress })
+      return { ok: true }
+    }
+  )
+
+  ipcMain.handle('settings:update-channel-set', (_event, channel: 'latest' | 'beta') => {
+    const current = getSettings()
+    saveSettings({ ...current, updateChannel: channel })
+    setUpdaterChannel(channel)
+    return { ok: true }
+  })
+
   ipcMain.handle('app:get-version', () => {
     return app.getVersion()
   })
@@ -163,6 +199,146 @@ function setupIpc(): void {
   ipcMain.handle('dialog:show-item-in-folder', (_event, filePath: string) => {
     shell.showItemInFolder(filePath)
   })
+
+  ipcMain.handle(
+    'comments:list',
+    (_event, { projectId, taskId }: { projectId: string; taskId: string }): Comment[] => {
+      const { dataDir } = getSettings()
+      const filePath = path.join(dataDir, `${projectId}.json`)
+      const data = loadOne(filePath)
+      if (!data) return []
+      return (data.comments ?? []).filter((c) => c.taskId === taskId)
+    }
+  )
+
+  ipcMain.handle(
+    'comments:add',
+    (
+      _event,
+      {
+        projectId,
+        comment
+      }: { projectId: string; comment: Omit<Comment, 'id' | 'createdAt'> }
+    ): Comment => {
+      const { dataDir } = getSettings()
+      const filePath = path.join(dataDir, `${projectId}.json`)
+      const data = loadOne(filePath)
+      if (!data) throw new Error('Project not found')
+      const newComment: Comment = {
+        ...comment,
+        id: ulid(),
+        createdAt: new Date().toISOString()
+      }
+      data.comments = [...(data.comments ?? []), newComment]
+      saveProject(dataDir, projectId, data, selfWriting)
+      return newComment
+    }
+  )
+
+  ipcMain.handle(
+    'issues:list',
+    (_event, { projectId, taskId }: { projectId: string; taskId: string }): Issue[] => {
+      const { dataDir } = getSettings()
+      const filePath = path.join(dataDir, `${projectId}.json`)
+      const data = loadOne(filePath)
+      if (!data) return []
+      return (data.issues ?? []).filter((i) => i.taskId === taskId)
+    }
+  )
+
+  ipcMain.handle(
+    'issues:create',
+    (
+      _event,
+      {
+        projectId,
+        taskId,
+        title,
+        body,
+        labels
+      }: { projectId: string; taskId: string; title: string; body: string; labels: string[] }
+    ): Issue => {
+      const { dataDir, name, mailAddress } = getSettings()
+      const filePath = path.join(dataDir, `${projectId}.json`)
+      const data = loadOne(filePath)
+      if (!data) throw new Error('Project not found')
+      const existingIssues = data.issues ?? []
+      const maxNumber = existingIssues.reduce((max, i) => Math.max(max, i.number), 0)
+      const newIssue: Issue = {
+        id: ulid(),
+        projectId,
+        taskId,
+        number: maxNumber + 1,
+        title,
+        body,
+        status: 'open',
+        labels,
+        createdAt: new Date().toISOString(),
+        closedAt: null,
+        authorName: name ?? '',
+        authorEmail: mailAddress ?? '',
+        comments: []
+      }
+      data.issues = [...existingIssues, newIssue]
+      saveProject(dataDir, projectId, data, selfWriting)
+      return newIssue
+    }
+  )
+
+  ipcMain.handle(
+    'issues:update',
+    (
+      _event,
+      {
+        projectId,
+        issueId,
+        changes
+      }: { projectId: string; issueId: string; changes: Partial<Issue> }
+    ): Issue => {
+      const { dataDir } = getSettings()
+      const filePath = path.join(dataDir, `${projectId}.json`)
+      const data = loadOne(filePath)
+      if (!data) throw new Error('Project not found')
+      const issues = data.issues ?? []
+      const idx = issues.findIndex((i) => i.id === issueId)
+      if (idx === -1) throw new Error('Issue not found')
+      const updated: Issue = { ...issues[idx], ...changes }
+      data.issues = [...issues.slice(0, idx), updated, ...issues.slice(idx + 1)]
+      saveProject(dataDir, projectId, data, selfWriting)
+      return updated
+    }
+  )
+
+  ipcMain.handle(
+    'issues:add-comment',
+    (
+      _event,
+      { projectId, issueId, body }: { projectId: string; issueId: string; body: string }
+    ): IssueComment => {
+      const { dataDir, name, mailAddress } = getSettings()
+      const filePath = path.join(dataDir, `${projectId}.json`)
+      const data = loadOne(filePath)
+      if (!data) throw new Error('Project not found')
+      const issues = data.issues ?? []
+      const idx = issues.findIndex((i) => i.id === issueId)
+      if (idx === -1) throw new Error('Issue not found')
+      const newComment: IssueComment = {
+        id: ulid(),
+        issueId,
+        authorName: name ?? '',
+        authorEmail: mailAddress ?? '',
+        body,
+        createdAt: new Date().toISOString()
+      }
+      const updatedIssue: Issue = {
+        ...issues[idx],
+        comments: [...issues[idx].comments, newComment]
+      }
+      data.issues = [...issues.slice(0, idx), updatedIssue, ...issues.slice(idx + 1)]
+      saveProject(dataDir, projectId, data, selfWriting)
+      return newComment
+    }
+  )
 }
 
 app.whenReady().then(() => {
@@ -175,6 +351,9 @@ app.whenReady().then(() => {
   setupCsp(is.dev)
   setupIpc()
   createWindow()
+  if (!is.dev) {
+    setupAutoUpdater(mainWindow!)
+  }
 
   const { dataDir } = getSettings()
   initWatcher(dataDir)

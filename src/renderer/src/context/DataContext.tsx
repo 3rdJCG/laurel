@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { ulid } from 'ulid'
-import type { Project, Task } from '../types'
+import type { Project, Task, Genre, Comment, Issue, IssueComment } from '../types'
 import type { ProjectFile, LoadAllResult } from '../../../main/storage/projectStore'
 
 export type LoadError = { filePath: string; message: string }
@@ -11,6 +11,7 @@ type DataContextValue = {
   isLoading: boolean
   error: string | null
   loadErrors: LoadError[]
+  genres: Genre[]
   createProject: (name: string) => Promise<void>
   updateProject: (projectId: string, changes: Partial<Project>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
@@ -19,6 +20,14 @@ type DataContextValue = {
   deleteTask: (projectId: string, taskId: string) => Promise<void>
   saveProjectData: (projectId: string) => Promise<void>
   dismissLoadErrors: () => void
+  addGenre: (name: string) => Promise<void>
+  updateGenres: (genres: Genre[]) => void
+  listComments: (projectId: string, taskId: string) => Promise<Comment[]>
+  addComment: (projectId: string, data: Omit<Comment, 'id' | 'createdAt' | 'authorName' | 'authorEmail'>) => Promise<Comment>
+  listIssues: (projectId: string, taskId: string) => Promise<Issue[]>
+  createIssue: (projectId: string, taskId: string, data: { title: string; body: string; labels: string[] }) => Promise<Issue>
+  updateIssue: (projectId: string, issueId: string, changes: Partial<Issue>) => Promise<Issue>
+  addIssueComment: (projectId: string, issueId: string, body: string) => Promise<IssueComment>
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -29,6 +38,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loadErrors, setLoadErrors] = useState<LoadError[]>([])
+  const [genres, setGenres] = useState<Genre[]>([])
 
   const loadAll = useCallback(async () => {
     setIsLoading(true)
@@ -53,6 +63,26 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     } finally {
       setIsLoading(false)
     }
+  }, [])
+
+  useEffect(() => {
+    window.api.invoke('settings:get').then((s) => {
+      const settings = s as { genres?: Genre[] }
+      setGenres(settings.genres ?? [])
+    })
+  }, [])
+
+  const addGenre = useCallback(async (name: string) => {
+    const newGenre: Genre = { name, color: '#6b7280' }
+    setGenres((prev) => {
+      const updated = [...prev, newGenre]
+      window.api.invoke('settings:genres-set', updated)
+      return updated
+    })
+  }, [])
+
+  const updateGenres = useCallback((genres: Genre[]) => {
+    setGenres(genres)
   }, [])
 
   useEffect(() => {
@@ -173,9 +203,11 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         parentId,
         title,
         status: 'todo',
-        genre: inheritFrom?.genre ?? null,
+        genre: parentId !== null ? null : (inheritFrom?.genre ?? null),
         tags: inheritFrom?.tags ?? [],
         createdAt: new Date().toISOString(),
+        occurredAt: new Date().toISOString().slice(0, 10),
+        dueAt: null,
         order: maxOrder + 1
       }
       const newTasks = [...existing, task]
@@ -231,6 +263,51 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     [projects, tasksByProject]
   )
 
+  const listComments = useCallback(async (projectId: string, taskId: string): Promise<Comment[]> => {
+    return (await window.api.invoke('comments:list', { projectId, taskId })) as Comment[]
+  }, [])
+
+  const addComment = useCallback(
+    async (
+      projectId: string,
+      data: Omit<Comment, 'id' | 'createdAt' | 'authorName' | 'authorEmail'>
+    ): Promise<Comment> => {
+      const settings = (await window.api.invoke('settings:get')) as { name?: string; mailAddress?: string }
+      const comment = {
+        ...data,
+        authorName: settings.name ?? '',
+        authorEmail: settings.mailAddress ?? ''
+      }
+      return (await window.api.invoke('comments:add', { projectId, comment })) as Comment
+    },
+    []
+  )
+
+  const listIssues = useCallback(async (projectId: string, taskId: string): Promise<Issue[]> => {
+    return (await window.api.invoke('issues:list', { projectId, taskId })) as Issue[]
+  }, [])
+
+  const createIssue = useCallback(
+    async (projectId: string, taskId: string, data: { title: string; body: string; labels: string[] }): Promise<Issue> => {
+      return (await window.api.invoke('issues:create', { projectId, taskId, ...data })) as Issue
+    },
+    []
+  )
+
+  const updateIssue = useCallback(
+    async (projectId: string, issueId: string, changes: Partial<Issue>): Promise<Issue> => {
+      return (await window.api.invoke('issues:update', { projectId, issueId, changes })) as Issue
+    },
+    []
+  )
+
+  const addIssueComment = useCallback(
+    async (projectId: string, issueId: string, body: string): Promise<IssueComment> => {
+      return (await window.api.invoke('issues:add-comment', { projectId, issueId, body })) as IssueComment
+    },
+    []
+  )
+
   const dismissLoadErrors = useCallback(() => setLoadErrors([]), [])
 
   return (
@@ -241,6 +318,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         isLoading,
         error,
         loadErrors,
+        genres,
         createProject,
         updateProject,
         deleteProject,
@@ -248,7 +326,15 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         updateTask,
         deleteTask,
         saveProjectData,
-        dismissLoadErrors
+        dismissLoadErrors,
+        addGenre,
+        updateGenres,
+        listComments,
+        addComment,
+        listIssues,
+        createIssue,
+        updateIssue,
+        addIssueComment
       }}
     >
       {children}

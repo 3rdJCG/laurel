@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { Project } from '../types'
 
-export type View = { type: 'home' } | { type: 'project'; projectId: string } | { type: 'settings' }
+export type View =
+  | { type: 'home' }
+  | { type: 'project'; projectId: string }
+  | { type: 'task'; projectId: string; taskId: string }
+  | { type: 'settings' }
 
 type Props = {
   currentView: View
@@ -26,7 +30,7 @@ export function Sidebar({ currentView, projects, onNavigate, onAboutOpen }: Prop
     if (view.type === 'settings' && currentView.type === 'settings') return true
     if (
       view.type === 'project' &&
-      currentView.type === 'project' &&
+      (currentView.type === 'project' || currentView.type === 'task') &&
       view.projectId === currentView.projectId
     )
       return true
