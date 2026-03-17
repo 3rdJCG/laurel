@@ -149,6 +149,15 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   // Update tab state
   const [draftChannel, setDraftChannel] = useState<'latest' | 'beta'>('latest')
   const [savedChannel, setSavedChannel] = useState<'latest' | 'beta'>('latest')
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState<
+    | { type: 'idle' }
+    | { type: 'checking' }
+    | { type: 'up-to-date' }
+    | { type: 'downloading'; percent: number }
+    | { type: 'ready'; version: string }
+    | { type: 'error'; message: string }
+  >({ type: 'idle' })
 
   // Categories tab state
   const [draftGenres, setDraftGenres] = useState<Genre[]>([])
@@ -172,6 +181,12 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
 
   useEffect(() => {
     loadSettings()
+    window.api.invoke('app:get-version').then((v) => setAppVersion(v as string))
+    const handler = (...args: unknown[]): void => {
+      setUpdateStatus(args[0] as typeof updateStatus)
+    }
+    window.api.on('updater:status', handler)
+    return () => window.api.off('updater:status', handler)
   }, [])
 
   useEffect(() => {
@@ -539,6 +554,33 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
                 テスター版では最新のベータビルドを受け取れます。安定版より不安定な場合があります。
               </p>
             </div>
+
+            <div className="settings-section">
+              <label>アップデート確認</label>
+              <p className="settings-hint">現在のバージョン: {appVersion || '—'}</p>
+              <div className="settings-update-row">
+                <button
+                  onClick={() => window.api.invoke('updater:check')}
+                  disabled={updateStatus.type === 'checking' || updateStatus.type === 'downloading'}
+                >
+                  今すぐ確認
+                </button>
+                {updateStatus.type === 'ready' && (
+                  <button onClick={() => window.api.invoke('updater:install')}>
+                    今すぐインストール（v{updateStatus.version}）
+                  </button>
+                )}
+              </div>
+              <p className="settings-hint">
+                {updateStatus.type === 'idle' && ''}
+                {updateStatus.type === 'checking' && '確認中...'}
+                {updateStatus.type === 'up-to-date' && '最新版です'}
+                {updateStatus.type === 'downloading' && `ダウンロード中... ${updateStatus.percent}%`}
+                {updateStatus.type === 'ready' && `v${updateStatus.version} の準備ができました`}
+                {updateStatus.type === 'error' && `エラー: ${updateStatus.message}`}
+              </p>
+            </div>
+
             <div className="settings-tab-footer">
               <button onClick={handleSave} disabled={saving || !currentIsDirty}>
                 {saving ? '保存中...' : '保存'}
