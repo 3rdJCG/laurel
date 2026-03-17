@@ -1,58 +1,69 @@
 # Laurel
 
-ローカルで動作するタスク管理アプリ。
+A local-first task management app built with Electron.
 
-## 技術スタック
+[日本語版はこちら](README.ja.md)
 
-- Electron 41
-- React 18 + TypeScript 5
-- electron-vite 3
+## Overview
 
-## 開発
+Laurel is a desktop task management application designed to run entirely on your local machine. No accounts, no cloud sync, no internet connection required — all your data stays on your computer.
+
+## Features
+
+- **Projects** — Organize tasks by project
+- **Tasks & Subtasks** — Create hierarchical task structures with drag-and-drop reordering
+- **Issues & Comments** — Attach issues and comment threads to tasks (GitHub-style)
+- **Genre System** — Categorize tasks with genres; filter and toggle visibility
+- **Tag Filtering** — Add tags to tasks and filter by them
+- **Local Storage** — All data saved as JSON files in a folder of your choice
+- **Auto Updater** — In-app updates via GitHub Releases (stable / beta channels)
+
+## Download
+
+Download the latest installer from the [Releases](https://github.com/3rdJCG/laurel/releases) page.
+
+> **Note:** On first launch, Windows SmartScreen may show a warning because the app is not code-signed. Click "More info" → "Run anyway" to proceed.
+
+## Development
+
+### Requirements
+
+- Node.js 20+
+- npm 10+
+
+### Setup
 
 ```bash
+git clone https://github.com/3rdJCG/laurel.git
+cd laurel
 npm install
 npm run dev
 ```
 
-## ビルド
+### Commands
 
 ```bash
-npm run build        # プロダクションビルド
-npm run build:win    # Windows
-npm run build:mac    # macOS
-npm run build:linux  # Linux
+npm run dev          # Start development server
+npm run build        # Production build (with typecheck)
+npm run typecheck    # TypeScript type check only
+npm run build:win    # Windows installer (.exe)
+npm run build:mac    # macOS (.dmg)
+npm run build:linux  # Linux (.AppImage)
 ```
 
-## コミットメッセージ規約
+## Privacy
 
-フォーマット: `<emoji> <type>: <説明>`
+Laurel collects no personal information and makes no internet connections. All data is stored locally as JSON files. See [docs/PRIVACY.md](docs/PRIVACY.md) for details.
 
-### 仕様 (Spec)
+## Tech Stack
 
-| Emoji | Type | 用途 |
-|---|---|---|
-| 📋 | `spec` | 提案・仕様・設計ドキュメントの追加・更新 |
-| ✅ | `tasks` | タスクリストの更新・完了 |
+- [Electron](https://www.electronjs.org/) 41
+- [React](https://react.dev/) 18 + [TypeScript](https://www.typescriptlang.org/) 5
+- [electron-vite](https://electron-vite.org/) 3
+- [electron-updater](https://www.electron.build/auto-update) — auto updates
+- [@dnd-kit](https://dndkit.com/) — drag and drop
+- [chokidar](https://github.com/paulmillr/chokidar) — file watching
 
-### 実装 (Impl)
+## License
 
-| Emoji | Type | 用途 |
-|---|---|---|
-| ✨ | `feat` | 新機能の追加 |
-| 🐛 | `fix` | バグ修正 |
-| ♻️ | `refactor` | 動作を変えないリファクタリング |
-| 💄 | `style` | UIスタイルの変更 |
-| 🔧 | `chore` | ビルド設定・依存関係の変更 |
-| 📝 | `docs` | ドキュメントの変更 |
-| 🎉 | `init` | 初回コミット・初期セットアップ |
-
-### 例
-
-```
-✨ feat: タスク作成機能を追加
-🐛 fix: 完了済みタスクが消えないバグを修正
-📋 spec: タスク編集機能の仕様を追加
-✅ tasks: タスク作成機能のタスクを完了
-🔧 chore: electron を 41.0.0 に更新
-```
+MIT
