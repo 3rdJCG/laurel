@@ -1,11 +1,13 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import type { Project, Task } from '../../renderer/src/types'
+import type { Project, Task, Comment, Issue } from '../../renderer/src/types'
 
 export type ProjectFile = {
   version: number
   project: Project
   tasks: Task[]
+  comments?: Comment[]
+  issues?: Issue[]
 }
 
 export type LoadAllResult = {
@@ -48,6 +50,8 @@ export function loadAll(dataDir: string): LoadAllResult {
         ...t,
         order: t.order ?? i
       }))
+      parsed.comments = parsed.comments ?? []
+      parsed.issues = parsed.issues ?? []
       result.projects.push(parsed)
     } catch (err) {
       result.errors.push({ filePath, message: String(err) })
@@ -66,6 +70,8 @@ export function loadOne(filePath: string): ProjectFile | null {
       ...t,
       order: t.order ?? i
     }))
+    parsed.comments = parsed.comments ?? []
+    parsed.issues = parsed.issues ?? []
     return parsed
   } catch {
     return null

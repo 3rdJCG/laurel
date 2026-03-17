@@ -24,3 +24,40 @@ export type Task = {
   occurredAt: string | null
   dueAt: string | null
 }
+
+export type Comment = {
+  id: string
+  taskId: string
+  parentId: string | null
+  authorName: string
+  authorEmail: string
+  body: string
+  createdAt: string
+}
+
+export type IssueStatus = 'open' | 'closed'
+
+export type IssueComment = {
+  id: string
+  issueId: string
+  authorName: string
+  authorEmail: string
+  body: string
+  createdAt: string
+}
+
+export type Issue = {
+  id: string
+  projectId: string
+  taskId: string
+  number: number
+  title: string
+  body: string
+  status: IssueStatus
+  labels: string[]
+  createdAt: string
+  closedAt: string | null
+  authorName: string
+  authorEmail: string
+  comments: IssueComment[]
+}

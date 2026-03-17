@@ -9,6 +9,7 @@ import type { Task } from '../types'
 type Props = {
   projectId: string
   onNavigateHome: () => void
+  onNavigateToTask: (projectId: string, taskId: string) => void
 }
 
 function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] {
@@ -22,7 +23,7 @@ function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] 
   return tasks.filter((t) => !hiddenIds.has(t.id))
 }
 
-export function ProjectScreen({ projectId }: Props): JSX.Element {
+export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Element {
   const { projects, tasksByProject, createTask, updateTask, saveProjectData } = useData()
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
@@ -212,6 +213,7 @@ export function ProjectScreen({ projectId }: Props): JSX.Element {
                   onSaveError={(msg) => setSaveError(msg)}
                   expandedIds={expandedIds}
                   onToggleExpand={handleToggleExpand}
+                  onNavigate={(taskId) => onNavigateToTask(projectId, taskId)}
                 />
               ))}
             </SortableContext>

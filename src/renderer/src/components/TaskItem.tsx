@@ -25,16 +25,11 @@ type Props = {
   onSaveError?: (message: string) => void
   expandedIds: Set<string>
   onToggleExpand: (taskId: string) => void
+  onNavigate?: (taskId: string) => void
 }
 
-function findRootTask(taskId: string, tasks: Task[]): Task | undefined {
-  const task = tasks.find((t) => t.id === taskId)
-  if (!task) return undefined
-  if (task.parentId === null) return task
-  return findRootTask(task.parentId, tasks)
-}
 
-export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, onEditEnd, onSaveError, expandedIds, onToggleExpand }: Props): JSX.Element {
+export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, onEditEnd, onSaveError, expandedIds, onToggleExpand, onNavigate }: Props): JSX.Element {
   const { updateTask, deleteTask, createTask, genres, addGenre } = useData()
   const isRoot = task.parentId === null
 
@@ -271,7 +266,13 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
             })()}
           </div>
 
-          <span className="task-title">{task.title}</span>
+          {onNavigate ? (
+            <button className="task-title task-title--link" onClick={() => onNavigate(task.id)}>
+              {task.title}
+            </button>
+          ) : (
+            <span className="task-title">{task.title}</span>
+          )}
 
           {/* Status badge */}
           <div className="status-wrapper">

@@ -22,11 +22,15 @@ const PALETTE = [
 type AppSettings = {
   dataDir: string
   genres: Genre[]
+  name: string
+  mailAddress: string
 }
 
 export function SettingsScreen(): JSX.Element {
   const { tasksByProject } = useData()
   const [dataDir, setDataDir] = useState('')
+  const [userName, setUserName] = useState('')
+  const [mailAddress, setMailAddress] = useState('')
   const [genres, setGenres] = useState<Genre[]>([])
   const [newGenre, setNewGenre] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -55,6 +59,8 @@ export function SettingsScreen(): JSX.Element {
   const loadSettings = async (): Promise<void> => {
     const settings = (await window.api.invoke('settings:get')) as AppSettings
     setDataDir(settings.dataDir)
+    setUserName(settings.name ?? '')
+    setMailAddress(settings.mailAddress ?? '')
     setGenres(settings.genres ?? [])
     setErrorMsg(null)
   }
@@ -77,6 +83,10 @@ export function SettingsScreen(): JSX.Element {
     return true
   }
 
+  const saveUserInfo = async (): Promise<void> => {
+    await window.api.invoke('settings:user-info-set', { name: userName, mailAddress })
+  }
+
   const saveGenres = async (updated: Genre[]): Promise<void> => {
     setGenres(updated)
     await window.api.invoke('settings:genres-set', updated)
@@ -87,6 +97,7 @@ export function SettingsScreen(): JSX.Element {
     setErrorMsg(null)
     setSuccessMsg(null)
     const ok = await saveDataDir(dataDir)
+    if (ok) await saveUserInfo()
     setSaving(false)
     if (ok) setSuccessMsg('設定を保存しました')
   }
@@ -145,6 +156,28 @@ export function SettingsScreen(): JSX.Element {
           <button onClick={handleSelectFolder}>フォルダを選択</button>
         </div>
         {errorMsg && <p className="error-message">{errorMsg}</p>}
+      </div>
+
+      <div className="settings-section">
+        <label>ユーザー情報</label>
+        <div className="settings-field">
+          <label>表示名</label>
+          <input
+            type="text"
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)}
+            placeholder="表示名"
+          />
+        </div>
+        <div className="settings-field">
+          <label>メールアドレス</label>
+          <input
+            type="email"
+            value={mailAddress}
+            onChange={(e) => setMailAddress(e.target.value)}
+            placeholder="example@example.com"
+          />
+        </div>
       </div>
 
       <div className="settings-section">
