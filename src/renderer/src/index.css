@@ -439,14 +439,17 @@ hr {
   border-radius: 5px;
 }
 
-/* Tree guide lines: vertical connector (│ / └)
-   タスク名の開始位置: 8px(padding) + depth×12px(col1) + 108px(col2〜4+gap×4) = 8+depth×12+108
-   線はその4px手前(gap内)に配置: left = 8 + depth×12 + 104 */
+/* Nested task indentation via CSS (12px per level) */
+.task-item > .task-item {
+  margin-left: 12px;
+}
+
+/* Tree guide lines: vertical connector (│ / └) */
 .task-item > .task-item::before {
   content: '';
   position: absolute;
   z-index: 1;
-  left: calc(8px + var(--task-depth) * 12px + 104px);
+  left: -6px;
   top: 0;
   width: 1px;
   background-color: #3a3a3a;
@@ -463,14 +466,14 @@ hr {
   height: 18px;
 }
 
-/* Tree guide lines: horizontal arm (─) 4px → task name start */
+/* Tree guide lines: horizontal arm (─) */
 .task-item > .task-item::after {
   content: '';
   position: absolute;
   z-index: 1;
-  left: calc(8px + var(--task-depth) * 12px + 104px);
+  left: -6px;
   top: 17px;
-  width: 4px;
+  width: 6px;
   height: 1px;
   background-color: #3a3a3a;
   pointer-events: none;
@@ -478,7 +481,7 @@ hr {
 
 .task-row {
   display: grid;
-  grid-template-columns: calc(var(--task-depth, 1) * 12px) 24px 20px 40px 1fr auto auto;
+  grid-template-columns: 24px 20px 40px 1fr 68px 50px 100px auto;
   align-items: center;
   gap: 0 6px;
   padding: 6px 8px;
@@ -537,7 +540,8 @@ hr {
 /* Status badge */
 .status-wrapper {
   position: relative;
-  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
 }
 
 .status-badge {
@@ -601,21 +605,9 @@ hr {
   background-color: #333 !important;
 }
 
-.task-indent-spacer {
-  display: block;
-}
-
 .task-genre-slot {
   display: flex;
   align-items: center;
-  min-width: 0;
-}
-
-.task-main {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
   min-width: 0;
 }
 
@@ -625,6 +617,21 @@ hr {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+}
+
+.task-due-date {
+  font-size: 11px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.task-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .task-genre {

@@ -183,7 +183,7 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
   const hasChildren = childTasks.length > 0
 
   return (
-    <div ref={setNodeRef} style={{ ...sortableStyle, '--task-depth': depth } as React.CSSProperties} className={`task-item task-item--depth-${depth}`}>
+    <div ref={setNodeRef} style={sortableStyle} className={`task-item task-item--depth-${depth}`}>
       {isEditing ? (
         <div className="task-edit-form">
           <input
@@ -251,8 +251,6 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
         </div>
       ) : (
         <div className="task-row">
-          <span className="task-indent-spacer" />
-
           {/* Drag handle */}
           <button className="drag-handle" {...attributes} {...listeners} aria-label="ドラッグ">⠿</button>
 
@@ -273,10 +271,7 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
             })()}
           </div>
 
-          <div className="task-main">
-            <span className="task-title">{task.title}</span>
-            {task.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
-          </div>
+          <span className="task-title">{task.title}</span>
 
           {/* Status badge */}
           <div className="status-wrapper">
@@ -301,14 +296,23 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
             )}
           </div>
 
-          <div className="task-actions">
-            {(task.occurredAt ?? null) && (
-              <span className="task-date">📅 {task.occurredAt}</span>
-            )}
+          {/* Due date - always visible, shown as remaining days */}
+          <span className="task-due-date">
             {(task.dueAt ?? null) && (() => {
-              const isOverdue = task.dueAt! < new Date().toISOString().slice(0, 10)
-              return <span className={`task-date${isOverdue ? ' task-date--overdue' : ''}`}>⏰ {task.dueAt}</span>
+              const today = new Date(); today.setHours(0, 0, 0, 0)
+              const due = new Date(task.dueAt!); due.setHours(0, 0, 0, 0)
+              const days = Math.round((due.getTime() - today.getTime()) / 86400000)
+              const isOverdue = days < 0
+              return <span className={`task-date${isOverdue ? ' task-date--overdue' : ''}`}>{days} Day</span>
             })()}
+          </span>
+
+          {/* Tags */}
+          <div className="task-tags">
+            {task.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
+          </div>
+
+          <div className="task-actions">
             <button onClick={() => onEditStart(task.id)}>編集</button>
             {depth < 5 && (
               <button onClick={() => setShowSubtaskForm(true)}>+ サブタスク</button>
