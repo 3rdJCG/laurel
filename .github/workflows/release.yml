@@ -25,3 +25,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:win -- --publish always
+
+      - name: Upload beta.yml for beta channel users
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = node -e "process.stdout.write(require('./package.json').version)"
+          copy dist\latest.yml dist\beta.yml
+          gh release upload "v$version" dist\beta.yml --clobber
