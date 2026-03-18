@@ -1,0 +1,45 @@
+name: Auto Bump Beta Version
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'package.json'
+
+jobs:
+  auto-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump to next beta if stable version detected
+        run: |
+          VERSION=$(node -e "process.stdout.write(require('./package.json').version)")
+          echo "Current version: $VERSION"
+
+          if echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f2)
+            PATCH=$(echo $VERSION | cut -d. -f3)
+            NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-beta.1"
+
+            echo "Stable version detected → bumping to $NEW_VERSION"
+
+            node -e "
+              const fs = require('fs');
+              const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              pkg.version = '$NEW_VERSION';
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            "
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add package.json
+            git commit -m "🔧 chore: auto bump to $NEW_VERSION [skip ci]"
+            git push
+          else
+            echo "Beta version '$VERSION' detected, no bump needed"
+          fi
