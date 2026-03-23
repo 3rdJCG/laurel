@@ -33,51 +33,44 @@ function getInitials(name: string): string {
 // ---- Issue List View ----
 function IssueListView({
   issues,
-  filter,
-  onFilterChange,
+  hideClosed,
+  onHideClosedChange,
   onSelect,
   onNew
 }: {
   issues: Issue[]
-  filter: 'open' | 'closed'
-  onFilterChange: (f: 'open' | 'closed') => void
+  hideClosed: boolean
+  onHideClosedChange: (v: boolean) => void
   onSelect: (issueId: string) => void
   onNew: () => void
 }): JSX.Element {
-  const openCount = issues.filter((i) => i.status === 'open').length
-  const closedCount = issues.filter((i) => i.status === 'closed').length
-  const filtered = issues.filter((i) => i.status === filter)
+  const sorted = [...issues].sort((a, b) => a.number - b.number)
+  const visible = hideClosed ? sorted.filter((i) => i.status === 'open') : sorted
 
   return (
     <div className="issues-container">
       <div className="issues-header">
-        <div className="issues-filter-bar">
-          <button
-            className={`issues-filter-btn ${filter === 'open' ? 'issues-filter-btn--active' : ''}`}
-            onClick={() => onFilterChange('open')}
-          >
-            ○ Open ({openCount})
-          </button>
-          <button
-            className={`issues-filter-btn ${filter === 'closed' ? 'issues-filter-btn--active' : ''}`}
-            onClick={() => onFilterChange('closed')}
-          >
-            ✓ Closed ({closedCount})
-          </button>
-        </div>
+        <label className="issues-hide-closed-label">
+          <input
+            type="checkbox"
+            checked={hideClosed}
+            onChange={(e) => onHideClosedChange(e.target.checked)}
+          />
+          Closedを非表示
+        </label>
         <button className="issues-new-btn" onClick={onNew}>
           New Issue
         </button>
       </div>
 
       <ul className="issue-list">
-        {filtered.length === 0 ? (
+        {visible.length === 0 ? (
           <li className="issue-row" style={{ color: '#888', justifyContent: 'center' }}>
-            {filter === 'open' ? 'No open issues' : 'No closed issues'}
+            No issues
           </li>
         ) : (
-          filtered.map((issue) => (
-            <li key={issue.id} className="issue-row">
+          visible.map((issue) => (
+            <li key={issue.id} className={`issue-row${issue.status === 'closed' ? ' issue-row--closed' : ''}`}>
               <span
                 className={`issue-status-icon issue-status-icon--${issue.status}`}
                 aria-label={issue.status}
@@ -90,7 +83,7 @@ function IssueListView({
                 </button>
                 <div className="issue-meta">
                   <span className="issue-number">#{issue.number}</span>
-                  <span>opened {formatRelativeDate(issue.createdAt)} by {issue.authorName || 'unknown'}</span>
+                  <span>{issue.status === 'open' ? 'opened' : 'closed'} {formatRelativeDate(issue.createdAt)} by {issue.authorName || 'unknown'}</span>
                   {issue.comments.length > 0 && (
                     <span className="issue-comment-count">💬 {issue.comments.length}</span>
                   )}
@@ -345,7 +338,7 @@ export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.
   const [issues, setIssues] = useState<Issue[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<ViewState>({ type: 'list' })
-  const [filter, setFilter] = useState<'open' | 'closed'>('open')
+  const [hideClosed, setHideClosed] = useState(false)
 
   const loadIssues = useCallback(async () => {
     setLoading(true)
@@ -411,8 +404,8 @@ export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.
   return (
     <IssueListView
       issues={issues}
-      filter={filter}
-      onFilterChange={setFilter}
+      hideClosed={hideClosed}
+      onHideClosedChange={setHideClosed}
       onSelect={(issueId) => setView({ type: 'detail', issueId })}
       onNew={() => setView({ type: 'new' })}
     />

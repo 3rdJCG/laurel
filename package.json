@@ -1,6 +1,6 @@
 {
   "name": "laurel",
-  "version": "1.0.1",
+  "version": "1.0.3-beta.1",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": "",
@@ -28,12 +28,14 @@
     "@electron-toolkit/utils": "^4.0.0",
     "chokidar": "^5.0.0",
     "electron-updater": "^6.8.3",
+    "marked": "^17.0.5",
     "ulid": "^3.0.2"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^2.0.0",
     "@electron-toolkit/eslint-config-ts": "^2.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/marked": "^5.0.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
