@@ -315,7 +315,7 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
 
           <div className="task-actions">
             <button onClick={() => onEditStart(task.id)}>編集</button>
-            {depth < 5 && (
+            {depth === 0 && (
               <button onClick={() => setShowSubtaskForm(true)}>+ サブタスク</button>
             )}
             <button onClick={() => setShowDeleteConfirm(true)}>削除</button>

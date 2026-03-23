@@ -1,9 +1,166 @@
 import { useState, useRef, useEffect } from 'react'
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useData } from '../context/DataContext'
-import { TaskItem } from '../components/TaskItem'
+import { GenrePicker } from '../components/GenrePicker'
+import { KanbanView } from '../components/KanbanView'
 import { IssuesTab } from '../components/IssuesTab'
+import { MarkdownTab } from '../components/MarkdownTab'
+import type { Task } from '../types'
+
+// ── TaskInfoHeader ─────────────────────────────────────────────────────────────
+
+type HeaderProps = {
+  task: Task
+  projectId: string
+}
+
+function TaskInfoHeader({ task, projectId }: HeaderProps): JSX.Element {
+  const { updateTask, genres, addGenre } = useData()
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(task.title)
+  const [editGenre, setEditGenre] = useState(task.genre ?? '')
+  const [editTags, setEditTags] = useState<string[]>(task.tags)
+  const [editOccurredAt, setEditOccurredAt] = useState(task.occurredAt ?? '')
+  const [editDueAt, setEditDueAt] = useState(task.dueAt ?? '')
+  const [newTag, setNewTag] = useState('')
+  const titleRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!editing) {
+      setEditTitle(task.title)
+      setEditGenre(task.genre ?? '')
+      setEditTags(task.tags)
+      setEditOccurredAt(task.occurredAt ?? '')
+      setEditDueAt(task.dueAt ?? '')
+    }
+  }, [task, editing])
+
+  useEffect(() => {
+    if (editing) titleRef.current?.focus()
+  }, [editing])
+
+  const handleSave = async (): Promise<void> => {
+    const title = editTitle.trim()
+    if (!title) return
+    await updateTask(projectId, task.id, {
+      title,
+      genre: editGenre.trim() || null,
+      tags: editTags,
+      occurredAt: editOccurredAt || null,
+      dueAt: editDueAt || null
+    })
+    setEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') handleSave()
+    if (e.key === 'Escape') setEditing(false)
+  }
+
+  const handleAddTag = (tag: string): void => {
+    const t = tag.trim()
+    if (t && !editTags.includes(t)) setEditTags([...editTags, t])
+    setNewTag('')
+  }
+
+  const genreObj = genres.find((g) => g.name === task.genre)
+  const badgeStyle = genreObj ? { backgroundColor: genreObj.color, color: '#fff' } : {}
+
+  if (editing) {
+    return (
+      <div className="task-info-header task-info-header--editing">
+        <div className="task-info-edit-row">
+          <input
+            ref={titleRef}
+            type="text"
+            className="task-info-title-input"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="タスク名"
+          />
+          <GenrePicker
+            value={editGenre || null}
+            genres={genres}
+            onChange={(v) => setEditGenre(v ?? '')}
+            onAddGenre={addGenre}
+          />
+        </div>
+
+        <div className="task-info-tags-row">
+          {editTags.map((tag) => (
+            <span key={tag} className="tag">
+              {tag}
+              <button onClick={() => setEditTags(editTags.filter((t) => t !== tag))}>×</button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(newTag) } }}
+            placeholder="タグ追加"
+            className="task-info-tag-input"
+          />
+        </div>
+
+        <div className="task-info-dates-row">
+          <label className="task-edit-date-label">
+            発生日
+            <input type="date" value={editOccurredAt} onChange={(e) => setEditOccurredAt(e.target.value)} />
+          </label>
+          <label className="task-edit-date-label">
+            期限日
+            <input type="date" value={editDueAt} onChange={(e) => setEditDueAt(e.target.value)} />
+          </label>
+        </div>
+
+        <div className="task-info-edit-actions">
+          <button className="btn-confirm" onClick={handleSave}>確定</button>
+          <button className="btn-cancel" onClick={() => setEditing(false)}>キャンセル</button>
+        </div>
+      </div>
+    )
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dueInfo = task.dueAt
+    ? (() => {
+        const due = new Date(task.dueAt)
+        due.setHours(0, 0, 0, 0)
+        const days = Math.round((due.getTime() - today.getTime()) / 86400000)
+        return { days, overdue: days < 0 }
+      })()
+    : null
+
+  return (
+    <div className="task-info-header">
+      <div className="task-info-top">
+        <button className="task-info-title" onClick={() => setEditing(true)}>
+          {task.title}
+        </button>
+        {task.genre && (
+          <span className="task-genre" style={badgeStyle}>{task.genre}</span>
+        )}
+        {dueInfo && (
+          <span className={`task-date${dueInfo.overdue ? ' task-date--overdue' : ''}`}>
+            期限: {dueInfo.days} Day
+          </span>
+        )}
+      </div>
+
+      {task.tags.length > 0 && (
+        <div className="task-info-tags">
+          {task.tags.map((tag) => (
+            <span key={tag} className="tag">{tag}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── TaskDetailScreen ───────────────────────────────────────────────────────────
 
 type Props = {
   projectId: string
@@ -11,83 +168,22 @@ type Props = {
   onNavigateBack: () => void
 }
 
-type Tab = 'tasks' | 'issues'
+type Tab = 'detail' | 'kanban' | 'issues'
 
 export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): JSX.Element {
-  const { projects, tasksByProject, updateTask, createTask } = useData()
-  const [activeTab, setActiveTab] = useState<Tab>('tasks')
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem(`laurel:expand:detail:${taskId}`)
-    return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>()
-  })
-  const [showSubtaskForm, setShowSubtaskForm] = useState(false)
-  const [subtaskTitle, setSubtaskTitle] = useState('')
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const { projects, tasksByProject, listIssues } = useData()
+  const [activeTab, setActiveTab] = useState<Tab>('detail')
   const [openIssueCount, setOpenIssueCount] = useState(0)
-  const subtaskRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    listIssues(projectId, taskId).then((issues) => {
+      setOpenIssueCount(issues.filter((i) => i.status === 'open').length)
+    })
+  }, [projectId, taskId])
 
   const project = projects.find((p) => p.id === projectId)
   const allTasks = tasksByProject[projectId] ?? []
   const task = allTasks.find((t) => t.id === taskId)
-
-  // Subtasks (children of this root task)
-  const childTasks = allTasks
-    .filter((t) => t.parentId === taskId)
-    .sort((a, b) => a.order - b.order)
-
-  useEffect(() => {
-    if (showSubtaskForm) subtaskRef.current?.focus()
-  }, [showSubtaskForm])
-
-  const handleToggleExpand = (id: string): void => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      localStorage.setItem(`laurel:expand:detail:${taskId}`, JSON.stringify([...next]))
-      return next
-    })
-  }
-
-  const handleChildDragEnd = async (event: DragEndEvent): Promise<void> => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = childTasks.findIndex((t) => t.id === active.id)
-    const newIndex = childTasks.findIndex((t) => t.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-    const reordered = arrayMove(childTasks, oldIndex, newIndex)
-    try {
-      for (let i = 0; i < reordered.length; i++) {
-        if (reordered[i].order !== i) {
-          await updateTask(reordered[i].projectId, reordered[i].id, { order: i })
-        }
-      }
-    } catch (err) {
-      setSaveError(String(err))
-    }
-  }
-
-  const handleAddSubtask = async (): Promise<void> => {
-    const title = subtaskTitle.trim()
-    if (!title || !task) return
-    try {
-      await createTask(projectId, taskId, title, task)
-      setSaveError(null)
-    } catch (err) {
-      setSaveError(String(err))
-    }
-    setSubtaskTitle('')
-    setShowSubtaskForm(false)
-  }
-
-  const handleSubtaskKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter') handleAddSubtask()
-    if (e.key === 'Escape') {
-      setSubtaskTitle('')
-      setShowSubtaskForm(false)
-    }
-  }
 
   if (!task) {
     return (
@@ -113,10 +209,16 @@ export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): 
       {/* Tab bar */}
       <div className="repo-tabs">
         <button
-          className={`repo-tab ${activeTab === 'tasks' ? 'repo-tab--active' : ''}`}
-          onClick={() => setActiveTab('tasks')}
+          className={`repo-tab ${activeTab === 'detail' ? 'repo-tab--active' : ''}`}
+          onClick={() => setActiveTab('detail')}
         >
-          Tasks
+          Detail
+        </button>
+        <button
+          className={`repo-tab ${activeTab === 'kanban' ? 'repo-tab--active' : ''}`}
+          onClick={() => setActiveTab('kanban')}
+        >
+          Kanban
         </button>
         <button
           className={`repo-tab ${activeTab === 'issues' ? 'repo-tab--active' : ''}`}
@@ -130,53 +232,16 @@ export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): 
       </div>
 
       <div className="repo-tab-content">
-        {activeTab === 'tasks' ? (
+        {activeTab === 'detail' && (
           <div className="repo-tasks-panel">
-            {saveError && (
-              <div className="error-message" style={{ marginBottom: 8 }}>{saveError}</div>
-            )}
-
-            <div className="task-list">
-              {/* The root task itself as a TaskItem (non-draggable wrapper) */}
-              <DndContext collisionDetection={closestCenter} onDragEnd={handleChildDragEnd}>
-                <SortableContext items={childTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    depth={0}
-                    allTasks={allTasks}
-                    editingTaskId={editingTaskId}
-                    onEditStart={(id) => setEditingTaskId(id)}
-                    onEditEnd={() => setEditingTaskId(null)}
-                    onSaveError={(msg) => setSaveError(msg)}
-                    expandedIds={expandedIds}
-                    onToggleExpand={handleToggleExpand}
-                  />
-                </SortableContext>
-              </DndContext>
-
-              {/* Add subtask form */}
-              {showSubtaskForm ? (
-                <div className="subtask-form" style={{ marginLeft: 12 }}>
-                  <input
-                    ref={subtaskRef}
-                    type="text"
-                    value={subtaskTitle}
-                    onChange={(e) => setSubtaskTitle(e.target.value)}
-                    onKeyDown={handleSubtaskKeyDown}
-                    placeholder="サブタスク名"
-                  />
-                  <button onClick={handleAddSubtask}>追加</button>
-                  <button onClick={() => { setSubtaskTitle(''); setShowSubtaskForm(false) }}>キャンセル</button>
-                </div>
-              ) : (
-                <button className="add-task-btn" onClick={() => setShowSubtaskForm(true)}>
-                  ＋ サブタスクを追加
-                </button>
-              )}
-            </div>
+            <TaskInfoHeader task={task} projectId={projectId} />
+            <MarkdownTab task={task} projectId={projectId} />
           </div>
-        ) : (
+        )}
+        {activeTab === 'kanban' && (
+          <KanbanView projectId={projectId} parentTaskId={taskId} />
+        )}
+        {activeTab === 'issues' && (
           <IssuesTab
             projectId={projectId}
             taskId={taskId}
