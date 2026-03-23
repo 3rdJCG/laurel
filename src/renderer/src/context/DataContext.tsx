@@ -208,7 +208,8 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         createdAt: new Date().toISOString(),
         occurredAt: new Date().toISOString().slice(0, 10),
         dueAt: null,
-        order: maxOrder + 1
+        order: maxOrder + 1,
+        description: null
       }
       const newTasks = [...existing, task]
       setTasksByProject((prev) => ({ ...prev, [projectId]: newTasks }))

@@ -23,6 +23,7 @@ export type Task = {
   order: number
   occurredAt: string | null
   dueAt: string | null
+  description: string | null
 }
 
 export type Comment = {

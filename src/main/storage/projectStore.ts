@@ -48,7 +48,8 @@ export function loadAll(dataDir: string): LoadAllResult {
       // Migrate: ensure order field exists on all tasks
       parsed.tasks = (parsed.tasks ?? []).map((t, i) => ({
         ...t,
-        order: t.order ?? i
+        order: t.order ?? i,
+        description: t.description ?? null
       }))
       parsed.comments = parsed.comments ?? []
       parsed.issues = parsed.issues ?? []
