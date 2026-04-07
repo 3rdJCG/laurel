@@ -14,7 +14,16 @@ import {
   useSortable
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { NavLink, Stack, Text, Tooltip, UnstyledButton, ScrollArea, Box, Divider } from '@mantine/core'
+import {
+  IconFolder,
+  IconHome,
+  IconSettings,
+  IconInfoCircle,
+  IconMenu2
+} from '@tabler/icons-react'
 import type { Project } from '../types'
+import iconWide from '../assets/icon-wide.png'
 
 export type View =
   | { type: 'home' }
@@ -23,13 +32,14 @@ export type View =
   | { type: 'settings' }
 
 type Props = {
+  collapsed: boolean
+  onToggleCollapse: () => void
   currentView: View
   projects: Project[]
   onNavigate: (view: View) => void
   onAboutOpen: () => void
 }
 
-const COLLAPSED_KEY = 'sidebar-collapsed'
 const ORDER_KEY = 'project-order'
 
 function loadOrder(): string[] {
@@ -53,7 +63,6 @@ function applySavedOrder(projects: Project[], savedIds: string[]): Project[] {
       map.delete(id)
     }
   }
-  // Append any projects not yet in saved order (new projects)
   for (const p of map.values()) ordered.push(p)
   return ordered
 }
@@ -78,56 +87,54 @@ function SortableProjectItem({ project, active, collapsed, onNavigate }: ItemPro
     opacity: isDragging ? 0.4 : 1
   }
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`sidebar-project-row${isDragging ? ' sidebar-project-row--dragging' : ''}`}
+  const folderIcon = (
+    <span
+      {...attributes}
+      {...listeners}
+      style={{ cursor: isDragging ? 'grabbing' : 'grab', display: 'flex', alignItems: 'center' }}
     >
-      {!collapsed && (
-        <button
-          className="sidebar-project-drag"
-          {...attributes}
-          {...listeners}
-          tabIndex={-1}
-          aria-label="並べ替え"
-        >
-          ⠿
-        </button>
-      )}
-      <button
-        className={`sidebar-item sidebar-item--project ${active ? 'sidebar-item--active' : ''}`}
-        onClick={() => onNavigate({ type: 'project', projectId: project.id })}
-        title={project.name}
-      >
-        <span className="sidebar-icon">📁</span>
-        {!collapsed && <span className="sidebar-label">{project.name}</span>}
-      </button>
+      <IconFolder size={16} stroke={1.5} />
+    </span>
+  )
+
+  const navLink = (
+    <NavLink
+      label={!collapsed ? project.name : undefined}
+      leftSection={folderIcon}
+      active={active}
+      onClick={() => onNavigate({ type: 'project', projectId: project.id })}
+      title={project.name}
+      styles={{
+        root: { borderRadius: 6, justifyContent: collapsed ? 'center' : undefined },
+        ...(collapsed && { section: { margin: 0 } })
+      }}
+    />
+  )
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {collapsed ? (
+        <Tooltip label={project.name} position="right" withArrow>
+          {navLink}
+        </Tooltip>
+      ) : navLink}
     </div>
   )
 }
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────
 
-export function Sidebar({ currentView, projects, onNavigate, onAboutOpen }: Props): JSX.Element {
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem(COLLAPSED_KEY) === 'true'
-  })
+export function Sidebar({ collapsed, onToggleCollapse, currentView, projects, onNavigate, onAboutOpen }: Props): JSX.Element {
   const [orderedProjects, setOrderedProjects] = useState<Project[]>(() =>
     applySavedOrder(projects, loadOrder())
   )
 
-  // Sync when projects list changes (add/remove)
   useEffect(() => {
     setOrderedProjects((prev) => {
       const savedIds = prev.map((p) => p.id)
       return applySavedOrder(projects, savedIds)
     })
   }, [projects])
-
-  useEffect(() => {
-    localStorage.setItem(COLLAPSED_KEY, String(collapsed))
-  }, [collapsed])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -158,65 +165,137 @@ export function Sidebar({ currentView, projects, onNavigate, onAboutOpen }: Prop
   }
 
   return (
-    <nav className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}`}>
-      <div className="sidebar-top">
-        <button
-          className="sidebar-hamburger"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
-        >
-          ☰
-        </button>
-      </div>
-
-      <div className="sidebar-nav">
-        <button
-          className={`sidebar-item ${isActive({ type: 'home' }) ? 'sidebar-item--active' : ''}`}
-          onClick={() => onNavigate({ type: 'home' })}
-        >
-          <span className="sidebar-icon">🏠</span>
-          {!collapsed && <span className="sidebar-label">Home</span>}
-        </button>
-
-        <div className="sidebar-section-label">{!collapsed && 'プロジェクト'}</div>
-
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={orderedProjects.map((p) => p.id)}
-            strategy={verticalListSortingStrategy}
+    <Box
+      className="sidebar-mantine"
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        borderRight: '1px solid var(--mantine-color-dark-5)',
+        background: 'var(--mantine-color-dark-8)'
+      }}
+    >
+      {/* Toggle button */}
+      <Box p="xs" style={{ borderBottom: '1px solid var(--mantine-color-dark-5)' }}>
+        <Tooltip label={collapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'} position="right" withArrow disabled={!collapsed}>
+          <UnstyledButton
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? 'サイドバーを展開' : 'サイドバーを折りたたむ'}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              gap: 8,
+              padding: '4px 6px',
+              borderRadius: 6,
+              color: 'var(--mantine-color-dark-2)'
+            }}
           >
-            <div className="sidebar-project-list">
-              {orderedProjects.map((p) => (
-                <SortableProjectItem
-                  key={p.id}
-                  project={p}
-                  active={isActive({ type: 'project', projectId: p.id })}
-                  collapsed={collapsed}
-                  onNavigate={onNavigate}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </div>
+            <IconMenu2 size={18} stroke={1.5} style={{ flexShrink: 0 }} />
+            {!collapsed && (
+              <img src={iconWide} alt="Laurel" style={{ height: 18, width: 'auto', display: 'block' }} />
+            )}
+          </UnstyledButton>
+        </Tooltip>
+      </Box>
 
-      <div className="sidebar-footer">
-        <button
-          className={`sidebar-item ${isActive({ type: 'settings' }) ? 'sidebar-item--active' : ''}`}
-          onClick={() => onNavigate({ type: 'settings' })}
-        >
-          <span className="sidebar-icon">⚙️</span>
-          {!collapsed && <span className="sidebar-label">Settings</span>}
-        </button>
-        <button className="sidebar-item" onClick={onAboutOpen}>
-          <span className="sidebar-icon">ℹ️</span>
-          {!collapsed && <span className="sidebar-label">About</span>}
-        </button>
-      </div>
-    </nav>
+      {/* Nav items */}
+      <ScrollArea style={{ flex: 1 }} p="xs">
+        <Stack gap={2}>
+          {/* Home */}
+          {collapsed ? (
+            <Tooltip label="Home" position="right" withArrow>
+              <NavLink
+                leftSection={<IconHome size={16} stroke={1.5} />}
+                active={isActive({ type: 'home' })}
+                onClick={() => onNavigate({ type: 'home' })}
+                styles={{ root: { borderRadius: 6, justifyContent: 'center' }, section: { margin: 0 } }}
+              />
+            </Tooltip>
+          ) : (
+            <NavLink
+              label="Home"
+              leftSection={<IconHome size={16} stroke={1.5} />}
+              active={isActive({ type: 'home' })}
+              onClick={() => onNavigate({ type: 'home' })}
+              styles={{ root: { borderRadius: 6 } }}
+            />
+          )}
+
+          {/* Projects section */}
+          {!collapsed && (
+            <Text size="xs" c="dimmed" px={8} mt={8} mb={2} fw={600} tt="uppercase" style={{ letterSpacing: '0.05em' }}>
+              プロジェクト
+            </Text>
+          )}
+          {collapsed && <Divider my={4} />}
+
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={orderedProjects.map((p) => p.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <Stack gap={2}>
+                {orderedProjects.map((p) => (
+                  <SortableProjectItem
+                    key={p.id}
+                    project={p}
+                    active={isActive({ type: 'project', projectId: p.id })}
+                    collapsed={collapsed}
+                    onNavigate={onNavigate}
+                  />
+                ))}
+              </Stack>
+            </SortableContext>
+          </DndContext>
+        </Stack>
+      </ScrollArea>
+
+      {/* Footer */}
+      <Box p="xs" style={{ borderTop: '1px solid var(--mantine-color-dark-5)' }}>
+        <Stack gap={2}>
+          {collapsed ? (
+            <>
+              <Tooltip label="Settings" position="right" withArrow>
+                <NavLink
+                  leftSection={<IconSettings size={16} stroke={1.5} />}
+                  active={isActive({ type: 'settings' })}
+                  onClick={() => onNavigate({ type: 'settings' })}
+                  styles={{ root: { borderRadius: 6, justifyContent: 'center' }, section: { margin: 0 } }}
+                />
+              </Tooltip>
+              <Tooltip label="About" position="right" withArrow>
+                <NavLink
+                  leftSection={<IconInfoCircle size={16} stroke={1.5} />}
+                  onClick={onAboutOpen}
+                  styles={{ root: { borderRadius: 6, justifyContent: 'center' }, section: { margin: 0 } }}
+                />
+              </Tooltip>
+            </>
+          ) : (
+            <>
+              <NavLink
+                label="Settings"
+                leftSection={<IconSettings size={16} stroke={1.5} />}
+                active={isActive({ type: 'settings' })}
+                onClick={() => onNavigate({ type: 'settings' })}
+                styles={{ root: { borderRadius: 6 } }}
+              />
+              <NavLink
+                label="About"
+                leftSection={<IconInfoCircle size={16} stroke={1.5} />}
+                onClick={onAboutOpen}
+                styles={{ root: { borderRadius: 6 } }}
+              />
+            </>
+          )}
+        </Stack>
+      </Box>
+    </Box>
   )
 }

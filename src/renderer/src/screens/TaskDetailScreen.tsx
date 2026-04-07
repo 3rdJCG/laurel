@@ -1,4 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
+import {
+  Tabs, Box, Group, Text, Button, TextInput,
+  Badge, ActionIcon, Breadcrumbs, Stack
+} from '@mantine/core'
+import { IconArrowLeft, IconX } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
 import { GenrePicker } from '../components/GenrePicker'
 import { KanbanView } from '../components/KanbanView'
@@ -51,80 +56,97 @@ function TaskInfoHeader({ task, projectId }: HeaderProps): JSX.Element {
   }
 
   return (
-    <div className="task-info-header task-info-header--always-edit">
+    <Stack gap="sm" mb="md">
       {/* Title */}
-      <div className="task-info-title-row">
-        {editingTitle ? (
-          <input
-            ref={titleRef}
-            type="text"
-            className="task-info-title-input"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            onKeyDown={handleTitleKeyDown}
-            onBlur={saveTitle}
-          />
-        ) : (
-          <button className="task-info-title" onClick={() => setEditingTitle(true)}>
-            {task.title}
-          </button>
-        )}
-      </div>
+      {editingTitle ? (
+        <TextInput
+          ref={titleRef}
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          onKeyDown={handleTitleKeyDown}
+          onBlur={saveTitle}
+          size="md"
+          fw={600}
+        />
+      ) : (
+        <Text
+          size="lg"
+          fw={600}
+          onClick={() => setEditingTitle(true)}
+          style={{ cursor: 'text' }}
+        >
+          {task.title}
+        </Text>
+      )}
 
       {/* Genre */}
-      <div className="task-info-meta-row">
-        <span className="task-info-meta-label">ジャンル</span>
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>ジャンル</Text>
         <GenrePicker
           value={task.genre ?? null}
           genres={genres}
           onChange={(v) => updateTask(projectId, task.id, { genre: v ?? null })}
           onAddGenre={addGenre}
         />
-      </div>
+      </Group>
 
       {/* Tags */}
-      <div className="task-info-meta-row">
-        <span className="task-info-meta-label">タグ</span>
-        <div className="task-info-tags-inline">
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>タグ</Text>
+        <Group gap={4}>
           {task.tags.map((tag) => (
-            <span key={tag} className="tag">
+            <Badge
+              key={tag}
+              size="sm"
+              variant="light"
+              rightSection={
+                <ActionIcon
+                  size={10}
+                  variant="transparent"
+                  onClick={() => handleRemoveTag(tag)}
+                  aria-label={`${tag}を削除`}
+                >
+                  <IconX size={8} stroke={2} />
+                </ActionIcon>
+              }
+            >
               {tag}
-              <button onClick={() => handleRemoveTag(tag)}>×</button>
-            </span>
+            </Badge>
           ))}
-          <input
-            type="text"
+          <TextInput
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(newTag) } }}
             placeholder="+ タグ追加"
-            className="task-info-tag-input"
+            size="xs"
+            variant="unstyled"
+            w={100}
           />
-        </div>
-      </div>
+        </Group>
+      </Group>
 
       {/* Occurred date */}
-      <div className="task-info-meta-row">
-        <span className="task-info-meta-label">発生日</span>
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>発生日</Text>
         <input
           type="date"
           value={task.occurredAt ?? ''}
           onChange={(e) => updateTask(projectId, task.id, { occurredAt: e.target.value || null })}
           className="task-info-date-input"
         />
-      </div>
+      </Group>
 
       {/* Due date */}
-      <div className="task-info-meta-row">
-        <span className="task-info-meta-label">期限日</span>
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>期限日</Text>
         <input
           type="date"
           value={task.dueAt ?? ''}
           onChange={(e) => updateTask(projectId, task.id, { dueAt: e.target.value || null })}
           className="task-info-date-input"
         />
-      </div>
-    </div>
+      </Group>
+    </Stack>
   )
 }
 
@@ -136,11 +158,9 @@ type Props = {
   onNavigateBack: () => void
 }
 
-type Tab = 'detail' | 'kanban'
-
 export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): JSX.Element {
   const { projects, tasksByProject } = useData()
-  const [activeTab, setActiveTab] = useState<Tab>('detail')
+  const [activeTab, setActiveTab] = useState<string>('detail')
 
   const project = projects.find((p) => p.id === projectId)
   const allTasks = tasksByProject[projectId] ?? []
@@ -148,52 +168,45 @@ export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): 
 
   if (!task) {
     return (
-      <div className="repo-view">
-        <p>タスクが見つかりません</p>
-        <button onClick={onNavigateBack}>戻る</button>
-      </div>
+      <Box p="md">
+        <Text c="dimmed" size="sm">タスクが見つかりません</Text>
+        <Button variant="subtle" size="xs" mt="xs" onClick={onNavigateBack}>戻る</Button>
+      </Box>
     )
   }
 
   return (
-    <div className="repo-view">
+    <Box style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Breadcrumb header */}
-      <header className="repo-header">
-        <button className="repo-back-btn" onClick={onNavigateBack}>← 戻る</button>
-        <div className="repo-breadcrumb">
-          <span className="repo-project-name">{project?.name ?? projectId}</span>
-          <span className="repo-slash"> / </span>
-          <span className="repo-task-name">{task.title}</span>
-        </div>
-      </header>
+      <Box px="md" pt="md" pb="xs" style={{ borderBottom: '1px solid var(--mantine-color-dark-5)' }}>
+        <Group gap="xs" align="center">
+          <Button variant="subtle" size="xs" onClick={onNavigateBack} px={4} leftSection={<IconArrowLeft size={14} stroke={1.5} />}>戻る</Button>
+          <Breadcrumbs separator="/" fz="xs" c="dimmed">
+            <Text size="xs" c="dimmed">{project?.name ?? projectId}</Text>
+            <Text size="xs">{task.title}</Text>
+          </Breadcrumbs>
+        </Group>
+      </Box>
 
-      {/* Tab bar */}
-      <div className="repo-tabs">
-        <button
-          className={`repo-tab ${activeTab === 'detail' ? 'repo-tab--active' : ''}`}
-          onClick={() => setActiveTab('detail')}
-        >
-          Detail
-        </button>
-        <button
-          className={`repo-tab ${activeTab === 'kanban' ? 'repo-tab--active' : ''}`}
-          onClick={() => setActiveTab('kanban')}
-        >
-          Kanban
-        </button>
-      </div>
+      <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? 'detail')} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <Box px="md">
+          <Tabs.List>
+            <Tabs.Tab value="detail">Detail</Tabs.Tab>
+            <Tabs.Tab value="kanban">Kanban</Tabs.Tab>
+          </Tabs.List>
+        </Box>
 
-      <div className="repo-tab-content">
-        {activeTab === 'detail' && (
-          <div className="repo-tasks-panel">
+        <Tabs.Panel value="detail" style={{ flex: 1, overflowY: 'auto' }}>
+          <Box p="md">
             <TaskInfoHeader task={task} projectId={projectId} />
             <MarkdownTab task={task} projectId={projectId} />
-          </div>
-        )}
-        {activeTab === 'kanban' && (
+          </Box>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="kanban" style={{ flex: 1, overflow: 'hidden' }}>
           <KanbanView projectId={projectId} parentTaskId={taskId} />
-        )}
-      </div>
-    </div>
+        </Tabs.Panel>
+      </Tabs>
+    </Box>
   )
 }

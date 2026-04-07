@@ -1,4 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
+import {
+  Stack, Group, Text, Title, TextInput, Button, ActionIcon,
+  Card, Box, Loader, Center
+} from '@mantine/core'
+import { IconPencil, IconTrash } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
 import { ErrorBanner } from '../components/ErrorBanner'
 import type { Project } from '../types'
@@ -61,93 +66,121 @@ export function HomeScreen({ onNavigateToProject }: Props): JSX.Element {
   }
 
   if (isLoading) {
-    return <div className="loading-screen">読み込み中...</div>
+    return (
+      <Center h="100%">
+        <Loader size="sm" />
+      </Center>
+    )
   }
 
   if (error) {
-    return <div className="error-screen">データの読み込みに失敗しました: {error}</div>
+    return (
+      <Center h="100%">
+        <Text c="red" size="sm">データの読み込みに失敗しました: {error}</Text>
+      </Center>
+    )
   }
 
   return (
-    <div className="home-screen">
-      {loadErrors.map((e) => (
-        <ErrorBanner
-          key={e.filePath}
-          level="warning"
-          message={`ファイルの読み込みをスキップしました: ${e.filePath} — ${e.message}`}
-          filePath={e.filePath}
-          onClose={dismissLoadErrors}
-        />
-      ))}
-      <h1>プロジェクト一覧</h1>
+    <Box p="md" style={{ maxWidth: 640, margin: '0 auto' }}>
+      <Stack gap="xs">
+        {loadErrors.map((e) => (
+          <ErrorBanner
+            key={e.filePath}
+            level="warning"
+            message={`ファイルの読み込みをスキップしました: ${e.filePath} — ${e.message}`}
+            filePath={e.filePath}
+            onClose={dismissLoadErrors}
+          />
+        ))}
 
-      {projects.length === 0 && !showAddForm && (
-        <p className="empty-message">プロジェクトはまだありません</p>
-      )}
+        <Group justify="space-between" align="center" mb="xs">
+          <Title order={4}>プロジェクト</Title>
+          {!showAddForm && (
+            <Button size="xs" variant="light" onClick={() => setShowAddForm(true)}>
+              ＋ 新規プロジェクト
+            </Button>
+          )}
+        </Group>
 
-      <ul className="project-list">
-        {projects.map((project: Project) => {
-          const taskCount = (tasksByProject[project.id] ?? []).length
-          const isEditing = editingProjectId === project.id
-          const isDeleting = deletingProjectId === project.id
-
-          return (
-            <li key={project.id} className="project-card">
-              {isEditing ? (
-                <div className="project-edit-form">
-                  <input
-                    ref={editRef}
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={handleEditKeyDown}
-                  />
-                  <button onClick={handleEditConfirm}>確定</button>
-                  <button onClick={() => setEditingProjectId(null)}>キャンセル</button>
-                </div>
-              ) : isDeleting ? (
-                <div className="project-delete-confirm">
-                  <span>「{project.name}」とタスク {taskCount} 件を削除しますか？</span>
-                  <button onClick={() => handleDeleteConfirm(project.id)}>削除</button>
-                  <button onClick={() => setDeletingProjectId(null)}>キャンセル</button>
-                </div>
-              ) : (
-                <div
-                  className="project-card-content"
-                  onClick={() => onNavigateToProject(project.id)}
-                >
-                  <span className="project-name">{project.name}</span>
-                  <div className="project-actions" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => startEdit(project)}>✏️</button>
-                    <button onClick={() => setDeletingProjectId(project.id)}>🗑️</button>
-                  </div>
-                </div>
-              )}
-            </li>
-          )
-        })}
-
-        {showAddForm ? (
-          <li className="project-add-form">
-            <input
-              ref={inputRef}
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={handleAddKeyDown}
-              placeholder="プロジェクト名"
-            />
-            <button onClick={handleAddConfirm}>追加</button>
-            <button onClick={() => { setNewName(''); setShowAddForm(false) }}>キャンセル</button>
-          </li>
-        ) : (
-          <li>
-            <button className="add-project-btn" onClick={() => setShowAddForm(true)}>
-              ＋ プロジェクトを追加
-            </button>
-          </li>
+        {projects.length === 0 && !showAddForm && (
+          <Text c="dimmed" size="sm">プロジェクトはまだありません</Text>
         )}
-      </ul>
-    </div>
+
+        <Stack gap="xs">
+          {projects.map((project: Project) => {
+            const taskCount = (tasksByProject[project.id] ?? []).length
+            const isEditing = editingProjectId === project.id
+            const isDeleting = deletingProjectId === project.id
+
+            return (
+              <Card
+                key={project.id}
+                padding="sm"
+                radius="md"
+                withBorder
+                style={{ cursor: isEditing || isDeleting ? 'default' : 'pointer' }}
+              >
+                {isEditing ? (
+                  <Group gap="xs">
+                    <TextInput
+                      ref={editRef}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={handleEditKeyDown}
+                      size="xs"
+                      style={{ flex: 1 }}
+                    />
+                    <Button size="xs" onClick={handleEditConfirm}>確定</Button>
+                    <Button size="xs" variant="default" onClick={() => setEditingProjectId(null)}>キャンセル</Button>
+                  </Group>
+                ) : isDeleting ? (
+                  <Group gap="xs" wrap="nowrap">
+                    <Text size="xs" style={{ flex: 1 }}>
+                      「{project.name}」とタスク {taskCount} 件を削除しますか？
+                    </Text>
+                    <Button size="xs" color="red" onClick={() => handleDeleteConfirm(project.id)}>削除</Button>
+                    <Button size="xs" variant="default" onClick={() => setDeletingProjectId(null)}>キャンセル</Button>
+                  </Group>
+                ) : (
+                  <Group justify="space-between" onClick={() => onNavigateToProject(project.id)}>
+                    <div>
+                      <Text size="sm" fw={500}>{project.name}</Text>
+                      <Text size="xs" c="dimmed">{taskCount} タスク</Text>
+                    </div>
+                    <Group gap={4} onClick={(e) => e.stopPropagation()}>
+                      <ActionIcon variant="subtle" size="sm" onClick={() => startEdit(project)} title="名前を編集">
+                        <IconPencil size={14} stroke={1.5} />
+                      </ActionIcon>
+                      <ActionIcon variant="subtle" size="sm" color="red" onClick={() => setDeletingProjectId(project.id)} title="削除">
+                        <IconTrash size={14} stroke={1.5} />
+                      </ActionIcon>
+                    </Group>
+                  </Group>
+                )}
+              </Card>
+            )
+          })}
+
+          {showAddForm ? (
+            <Card padding="sm" radius="md" withBorder>
+              <Group gap="xs">
+                <TextInput
+                  ref={inputRef}
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={handleAddKeyDown}
+                  placeholder="プロジェクト名"
+                  size="xs"
+                  style={{ flex: 1 }}
+                />
+                <Button size="xs" onClick={handleAddConfirm}>追加</Button>
+                <Button size="xs" variant="default" onClick={() => { setNewName(''); setShowAddForm(false) }}>キャンセル</Button>
+              </Group>
+            </Card>
+          ) : null}
+        </Stack>
+      </Stack>
+    </Box>
   )
 }
