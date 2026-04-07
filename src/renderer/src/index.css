@@ -516,7 +516,7 @@ hr {
 
 .task-row {
   display: grid;
-  grid-template-columns: 24px 20px 40px minmax(0, 1fr) 68px 50px minmax(0, 100px) auto;
+  grid-template-columns: 24px 20px 40px minmax(0, 1fr) 68px 50px 50px minmax(0, 100px) auto;
   align-items: center;
   gap: 0 6px;
   padding: 6px 8px;
@@ -644,6 +644,7 @@ hr {
   display: flex;
   align-items: center;
   min-width: 0;
+  position: relative;
 }
 
 .task-title {
@@ -678,16 +679,111 @@ hr {
   padding: 1px 6px;
   flex-shrink: 0;
   font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
+
+.task-genre--empty {
+  background: none;
+  border-color: transparent;
+  color: #555;
+  opacity: 0;
+}
+
+.task-row:hover .task-genre--empty {
+  opacity: 1;
+}
+
+.task-genre-dropdown {
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 4px);
+  left: 0;
+  background-color: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.task-genre-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.task-genre-dropdown-item:hover {
+  background-color: #2a2a2a;
+}
+
+.task-genre-dropdown-item--selected {
+  background-color: #333;
+}
+
+.task-genre-dropdown-none {
+  color: #888;
+}
+
 
 .task-date {
   font-size: 11px;
   color: #888;
   flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.task-date:hover {
+  color: #555;
+  text-decoration: underline;
 }
 
 .task-date--overdue {
   color: #ef4444;
+}
+
+.task-date--overdue:hover {
+  color: #dc2626;
+}
+
+.task-date-add {
+  font-size: 11px;
+  color: #bbb;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.task-date-add:hover {
+  color: #888;
+}
+
+.task-due-date-input {
+  font-size: 11px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 1px 4px;
+  flex-shrink: 0;
 }
 
 .tag {
@@ -1266,6 +1362,115 @@ hr {
   padding: 0;
 }
 
+/* Task title inline edit */
+.task-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.task-title-input {
+  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  background-color: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #e0e0e0;
+}
+
+.task-title-edit-btn {
+  background: none;
+  border: none;
+  color: #555;
+  padding: 0 2px;
+  font-size: 11px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+  line-height: 1;
+}
+
+.task-row:hover .task-title-edit-btn {
+  opacity: 1;
+}
+
+.task-title-edit-btn:hover {
+  color: #aaa;
+  background: none;
+}
+
+/* Occurred at (same pattern as due date) */
+.task-occurred-at {
+  font-size: 11px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.task-date-add--ghost {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.task-row:hover .task-date-add--ghost {
+  opacity: 1;
+}
+
+/* Inline tag editor */
+.tag-remove-btn {
+  background: none;
+  border: none;
+  color: #5a9cf5;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s;
+  flex-shrink: 0;
+}
+
+.task-row:hover .tag-remove-btn {
+  opacity: 1;
+}
+
+.task-tag-add-btn {
+  font-size: 11px;
+  color: #555;
+  background: none;
+  border: 1px dashed #444;
+  border-radius: 3px;
+  padding: 0 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+  line-height: 18px;
+}
+
+.task-row:hover .task-tag-add-btn {
+  opacity: 1;
+}
+
+.task-tag-add-btn:hover {
+  color: #aaa;
+  border-color: #666;
+  background: none;
+}
+
+.task-tag-input {
+  width: 70px;
+  font-size: 11px;
+  padding: 1px 4px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background-color: #2a2a2a;
+  color: #e0e0e0;
+}
+
 /* ===== GitHub-like Repo View ===== */
 .repo-view {
   width: 100%;
@@ -1385,47 +1590,142 @@ hr {
 
 /* ── MarkdownTab ──────────────────────────────────────────────────────────── */
 
-.markdown-tab {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.markdown-file-box {
+  border: 1px solid #333;
+  border-radius: 6px;
 }
 
-.markdown-tab-toolbar {
+.markdown-file-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  padding: 0 12px;
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #333;
+  min-height: 40px;
+  border-radius: 6px 6px 0 0;
 }
 
-.markdown-tab-edit-btn {
-  background: none;
-  border: 1px solid #444;
-  color: #ccc;
-  border-radius: 5px;
-  padding: 4px 12px;
+.markdown-file-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.markdown-file-tab {
   font-size: 12px;
-  cursor: pointer;
+  font-weight: 600;
+  color: #e0e0e0;
+  padding: 8px 0;
+  border-bottom: 2px solid #f05033;
+  margin-bottom: -1px;
 }
 
-.markdown-tab-edit-btn:hover {
-  border-color: #888;
+.markdown-file-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.markdown-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #888;
+  cursor: pointer;
+  padding: 0;
+}
+
+.markdown-icon-btn:hover:not(:disabled) {
+  color: #e0e0e0;
+  border-color: #444;
+  background-color: #2a2a2a;
+}
+
+.markdown-icon-btn:disabled {
+  color: #444;
+  cursor: default;
+}
+
+.markdown-icon-btn--active {
+  color: #e0e0e0;
+  border-color: #444;
+  background-color: #2a2a2a;
+}
+
+.markdown-icon-btn--save {
+  color: #4ade80;
+}
+
+.markdown-icon-btn--save:hover {
+  color: #86efac;
+  border-color: #4ade80;
+}
+
+.markdown-toc-wrapper {
+  position: relative;
+}
+
+.markdown-toc-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  background-color: #252525;
+  border: 1px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  z-index: 100;
+  padding: 4px 0;
+}
+
+.markdown-toc-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.markdown-toc-item:hover {
+  background-color: #333;
   color: #fff;
+}
+
+.markdown-file-content {
+  background-color: #161616;
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
 }
 
 .markdown-tab-hint {
   font-size: 11px;
   color: #555;
-  margin-left: 4px;
+  padding: 4px 12px 8px;
 }
 
 .markdown-tab-editor {
   width: 100%;
   min-height: 320px;
-  background: #1a1a1a;
+  background: #161616;
   color: #e0e0e0;
-  border: 1px solid #383838;
-  border-radius: 6px;
-  padding: 12px;
+  border: none;
+  border-radius: 0;
+  padding: 16px;
   font-family: 'Cascadia Code', 'Fira Code', monospace;
   font-size: 13px;
   line-height: 1.6;
@@ -1435,20 +1735,16 @@ hr {
 
 .markdown-tab-editor:focus {
   outline: none;
-  border-color: #4a7dd4;
 }
 
 .markdown-tab-empty {
-  padding: 32px 16px;
+  padding: 40px 16px;
   text-align: center;
   color: #555;
-  border: 1px dashed #333;
-  border-radius: 6px;
   cursor: pointer;
 }
 
 .markdown-tab-empty:hover {
-  border-color: #555;
   color: #888;
 }
 
@@ -1465,7 +1761,7 @@ hr {
   color: #e0e0e0;
   font-size: 14px;
   line-height: 1.7;
-  padding: 4px 0;
+  padding: 16px;
 }
 
 .markdown-body h1,
@@ -2011,17 +2307,14 @@ hr {
   margin-bottom: 16px;
 }
 
-.task-info-header--editing {
+.task-info-header--always-edit {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.task-info-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.task-info-title-row {
+  margin-bottom: 4px;
 }
 
 .task-info-title {
@@ -2043,28 +2336,27 @@ hr {
   margin: -2px -4px;
 }
 
-.task-info-tags {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-}
-
-.task-info-edit-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .task-info-title-input {
   font-size: 15px;
   font-weight: 600;
-  flex: 1;
-  min-width: 200px;
+  width: 100%;
 }
 
-.task-info-tags-row {
+.task-info-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.task-info-meta-label {
+  font-size: 11px;
+  color: #888;
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.task-info-tags-inline {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
@@ -2073,17 +2365,36 @@ hr {
 
 .task-info-tag-input {
   width: 100px;
+  font-size: 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #444;
+  color: #ccc;
+  padding: 1px 2px;
+  outline: none;
 }
 
-.task-info-dates-row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.task-info-tag-input::placeholder {
+  color: #555;
 }
 
-.task-info-edit-actions {
-  display: flex;
-  gap: 6px;
+.task-info-tag-input:focus {
+  border-bottom-color: #888;
+}
+
+.task-info-date-input {
+  font-size: 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #444;
+  color: #ccc;
+  padding: 1px 2px;
+  cursor: pointer;
+}
+
+.task-info-date-input:focus {
+  outline: none;
+  border-bottom-color: #888;
 }
 
 /* ===== Kanban Board ===== */

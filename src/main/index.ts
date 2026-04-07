@@ -245,11 +245,12 @@ function setupIpc(): void {
 
   ipcMain.handle(
     'issues:list',
-    (_event, { projectId, taskId }: { projectId: string; taskId: string }): Issue[] => {
+    (_event, { projectId, taskId }: { projectId: string; taskId: string | null }): Issue[] => {
       const { dataDir } = getSettings()
       const filePath = path.join(dataDir, `${projectId}.json`)
       const data = loadOne(filePath)
       if (!data) return []
+      if (taskId === null) return data.issues ?? []
       return (data.issues ?? []).filter((i) => i.taskId === taskId)
     }
   )
@@ -264,7 +265,7 @@ function setupIpc(): void {
         title,
         body,
         labels
-      }: { projectId: string; taskId: string; title: string; body: string; labels: string[] }
+      }: { projectId: string; taskId: string | null; title: string; body: string; labels: string[] }
     ): Issue => {
       const { dataDir, name, mailAddress } = getSettings()
       const filePath = path.join(dataDir, `${projectId}.json`)

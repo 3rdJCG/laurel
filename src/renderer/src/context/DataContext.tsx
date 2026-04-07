@@ -24,8 +24,8 @@ type DataContextValue = {
   updateGenres: (genres: Genre[]) => void
   listComments: (projectId: string, taskId: string) => Promise<Comment[]>
   addComment: (projectId: string, data: Omit<Comment, 'id' | 'createdAt' | 'authorName' | 'authorEmail'>) => Promise<Comment>
-  listIssues: (projectId: string, taskId: string) => Promise<Issue[]>
-  createIssue: (projectId: string, taskId: string, data: { title: string; body: string; labels: string[] }) => Promise<Issue>
+  listIssues: (projectId: string, taskId: string | null) => Promise<Issue[]>
+  createIssue: (projectId: string, taskId: string | null, data: { title: string; body: string; labels: string[] }) => Promise<Issue>
   updateIssue: (projectId: string, issueId: string, changes: Partial<Issue>) => Promise<Issue>
   addIssueComment: (projectId: string, issueId: string, body: string) => Promise<IssueComment>
 }
@@ -284,12 +284,12 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     []
   )
 
-  const listIssues = useCallback(async (projectId: string, taskId: string): Promise<Issue[]> => {
+  const listIssues = useCallback(async (projectId: string, taskId: string | null): Promise<Issue[]> => {
     return (await window.api.invoke('issues:list', { projectId, taskId })) as Issue[]
   }, [])
 
   const createIssue = useCallback(
-    async (projectId: string, taskId: string, data: { title: string; body: string; labels: string[] }): Promise<Issue> => {
+    async (projectId: string, taskId: string | null, data: { title: string; body: string; labels: string[] }): Promise<Issue> => {
       return (await window.api.invoke('issues:create', { projectId, taskId, ...data })) as Issue
     },
     []

@@ -9,7 +9,6 @@ type ViewState =
 
 type Props = {
   projectId: string
-  taskId: string
   onOpenCountChange?: (count: number) => void
 }
 
@@ -333,7 +332,7 @@ function IssueDetailView({
 }
 
 // ---- IssuesTab (root component) ----
-export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.Element {
+export function IssuesTab({ projectId, onOpenCountChange }: Props): JSX.Element {
   const { listIssues, createIssue, updateIssue, addIssueComment } = useData()
   const [issues, setIssues] = useState<Issue[]>([])
   const [loading, setLoading] = useState(true)
@@ -343,12 +342,12 @@ export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.
   const loadIssues = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await listIssues(projectId, taskId)
+      const result = await listIssues(projectId, null)
       setIssues(result)
     } finally {
       setLoading(false)
     }
-  }, [listIssues, projectId, taskId])
+  }, [listIssues, projectId])
 
   useEffect(() => {
     loadIssues()
@@ -360,7 +359,7 @@ export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.
   }, [issues, onOpenCountChange])
 
   const handleCreate = async (title: string, body: string, labels: string[]): Promise<void> => {
-    const newIssue = await createIssue(projectId, taskId, { title, body, labels })
+    const newIssue = await createIssue(projectId, null, { title, body, labels })
     setIssues((prev) => [...prev, newIssue])
     setView({ type: 'list' })
   }
