@@ -50,7 +50,7 @@ export type IssueComment = {
 export type Issue = {
   id: string
   projectId: string
-  taskId: string
+  taskId: string | null
   number: number
   title: string
   body: string

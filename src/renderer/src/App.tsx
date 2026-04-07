@@ -1,4 +1,7 @@
 import { useState, useRef } from 'react'
+import { MantineProvider, AppShell, createTheme } from '@mantine/core'
+import { useLocalStorage } from '@mantine/hooks'
+import { Notifications } from '@mantine/notifications'
 import { DataProvider, useData } from './context/DataContext'
 import { HomeScreen } from './screens/HomeScreen'
 import { ProjectScreen } from './screens/ProjectScreen'
@@ -7,10 +10,52 @@ import { SettingsScreen } from './screens/SettingsScreen'
 import { Sidebar, type View } from './components/Sidebar'
 import { AboutModal } from './components/AboutModal'
 
+const theme = createTheme({
+  primaryColor: 'blue',
+  fontFamily: "'IBM Plex Sans JP', system-ui, -apple-system, sans-serif",
+  fontSizes: {
+    xs: '11px',
+    sm: '12px',
+    md: '13px',
+    lg: '14px',
+    xl: '16px'
+  },
+  colors: {
+    dark: [
+      '#C1C2C5',
+      '#A6A7AB',
+      '#909296',
+      '#5C5F66',
+      '#373A40',
+      '#2C2E33',
+      '#25262B',
+      '#1A1B1E',
+      '#141517',
+      '#101113'
+    ]
+  },
+  components: {
+    Button: {
+      defaultProps: { size: 'xs' }
+    },
+    ActionIcon: {
+      defaultProps: { size: 'sm', variant: 'subtle' }
+    }
+  }
+})
+
+const COLLAPSED_KEY = 'sidebar-collapsed'
+const SIDEBAR_WIDTH = 200
+const SIDEBAR_COLLAPSED_WIDTH = 48
+
 function AppContent(): JSX.Element {
   const { projects } = useData()
   const [currentView, setCurrentView] = useState<View>({ type: 'home' })
   const [isAboutOpen, setIsAboutOpen] = useState(false)
+  const [collapsed, setCollapsed] = useLocalStorage<boolean>({
+    key: COLLAPSED_KEY,
+    defaultValue: false
+  })
   const settingsIsDirtyRef = useRef<() => boolean>(() => false)
 
   const handleNavigate = (view: View): void => {
@@ -45,7 +90,13 @@ function AppContent(): JSX.Element {
       )
     }
     if (currentView.type === 'settings') {
-      return <SettingsScreen registerDirtyChecker={(fn) => { settingsIsDirtyRef.current = fn }} />
+      return (
+        <SettingsScreen
+          registerDirtyChecker={(fn) => {
+            settingsIsDirtyRef.current = fn
+          }}
+        />
+      )
     }
     return (
       <HomeScreen
@@ -55,27 +106,41 @@ function AppContent(): JSX.Element {
   }
 
   return (
-    <div className="app-layout">
-      <Sidebar
-        currentView={currentView}
-        projects={projects}
-        onNavigate={handleNavigate}
-        onAboutOpen={() => setIsAboutOpen(true)}
-      />
-      <main className="app-main">
+    <AppShell
+      navbar={{
+        width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH,
+        breakpoint: 0
+      }}
+      padding={0}
+    >
+      <AppShell.Navbar>
+        <Sidebar
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((c) => !c)}
+          currentView={currentView}
+          projects={projects}
+          onNavigate={handleNavigate}
+          onAboutOpen={() => setIsAboutOpen(true)}
+        />
+      </AppShell.Navbar>
+
+      <AppShell.Main>
         {renderMain()}
-      </main>
+      </AppShell.Main>
 
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
-    </div>
+    </AppShell>
   )
 }
 
 function App(): JSX.Element {
   return (
-    <DataProvider>
-      <AppContent />
-    </DataProvider>
+    <MantineProvider theme={theme} defaultColorScheme="dark">
+      <Notifications />
+      <DataProvider>
+        <AppContent />
+      </DataProvider>
+    </MantineProvider>
   )
 }
 

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
+import { Modal, Text, Stack, Divider, Button, Group } from '@mantine/core'
 
 type Props = {
   isOpen: boolean
   onClose: () => void
 }
 
-export function AboutModal({ isOpen, onClose }: Props): JSX.Element | null {
+export function AboutModal({ isOpen, onClose }: Props): JSX.Element {
   const [version, setVersion] = useState('')
 
   useEffect(() => {
@@ -14,20 +15,19 @@ export function AboutModal({ isOpen, onClose }: Props): JSX.Element | null {
     }
   }, [isOpen])
 
-  if (!isOpen) return null
-
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Laurel について</h2>
-        <p><strong>バージョン:</strong> {version}</p>
-        <p><strong>ライセンス:</strong> MIT License</p>
-        <hr />
-        <p>このアプリは外部サーバーへデータを送信しません。すべてのデータはローカルに保存されます。</p>
-        <div className="modal-footer">
-          <button onClick={onClose}>閉じる</button>
-        </div>
-      </div>
-    </div>
+    <Modal opened={isOpen} onClose={onClose} title="Laurel について" size="sm" centered>
+      <Stack gap="xs">
+        <Text size="sm"><strong>バージョン:</strong> {version}</Text>
+        <Text size="sm"><strong>ライセンス:</strong> MIT License</Text>
+        <Divider />
+        <Text size="sm" c="dimmed">
+          このアプリは外部サーバーへデータを送信しません。すべてのデータはローカルに保存されます。
+        </Text>
+        <Group justify="flex-end" mt="xs">
+          <Button variant="default" size="xs" onClick={onClose}>閉じる</Button>
+        </Group>
+      </Stack>
+    </Modal>
   )
 }

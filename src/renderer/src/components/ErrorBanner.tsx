@@ -1,3 +1,5 @@
+import { Alert, Button, Group } from '@mantine/core'
+
 type BannerLevel = 'critical' | 'warning'
 
 type Props = {
@@ -16,17 +18,26 @@ export function ErrorBanner({ level, message, filePath, onClose, onRetry }: Prop
   }
 
   return (
-    <div className={`error-banner error-banner--${level}`}>
-      <span className="error-banner-message">{message}</span>
-      <div className="error-banner-actions">
+    <Alert
+      color={level === 'critical' ? 'red' : 'yellow'}
+      variant="light"
+      withCloseButton
+      onClose={onClose}
+      mb="xs"
+    >
+      <Group gap="xs" wrap="nowrap" align="center">
+        <span style={{ flex: 1 }}>{message}</span>
         {filePath && (
-          <button onClick={handleShowFile}>ファイルを開く</button>
+          <Button size="xs" variant="subtle" onClick={handleShowFile}>
+            ファイルを開く
+          </Button>
         )}
         {onRetry && (
-          <button onClick={onRetry}>再試行</button>
+          <Button size="xs" variant="subtle" onClick={onRetry}>
+            再試行
+          </Button>
         )}
-        <button onClick={onClose}>×</button>
-      </div>
-    </div>
+      </Group>
+    </Alert>
   )
 }

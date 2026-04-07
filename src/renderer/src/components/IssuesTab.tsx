@@ -1,4 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
+import {
+  Stack, Group, Text, Button, TextInput, Textarea, Badge,
+  Avatar, Card, Checkbox, Box, Loader, Center, Divider
+} from '@mantine/core'
 import { useData } from '../context/DataContext'
 import type { Issue, IssueComment } from '../types'
 
@@ -9,18 +13,12 @@ type ViewState =
 
 type Props = {
   projectId: string
-  taskId: string
   onOpenCountChange?: (count: number) => void
 }
 
-function formatRelativeDate(dateStr: string): string {
+function formatAbsoluteDate(dateStr: string): string {
   const date = new Date(dateStr)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / 86400000)
-  if (diffDays === 0) return 'today'
-  if (diffDays === 1) return '1 day ago'
-  return `${diffDays} days ago`
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
 }
 
 function getInitials(name: string): string {
@@ -32,11 +30,7 @@ function getInitials(name: string): string {
 
 // ---- Issue List View ----
 function IssueListView({
-  issues,
-  hideClosed,
-  onHideClosedChange,
-  onSelect,
-  onNew
+  issues, hideClosed, onHideClosedChange, onSelect, onNew
 }: {
   issues: Issue[]
   hideClosed: boolean
@@ -48,59 +42,59 @@ function IssueListView({
   const visible = hideClosed ? sorted.filter((i) => i.status === 'open') : sorted
 
   return (
-    <div className="issues-container">
-      <div className="issues-header">
-        <label className="issues-hide-closed-label">
-          <input
-            type="checkbox"
-            checked={hideClosed}
-            onChange={(e) => onHideClosedChange(e.target.checked)}
-          />
-          Closedを非表示
-        </label>
-        <button className="issues-new-btn" onClick={onNew}>
-          New Issue
-        </button>
-      </div>
+    <Box p="md">
+      <Group justify="space-between" mb="sm">
+        <Checkbox
+          label="Closedを非表示"
+          checked={hideClosed}
+          onChange={(e) => onHideClosedChange(e.currentTarget.checked)}
+          size="xs"
+        />
+        <Button size="xs" onClick={onNew}>New Issue</Button>
+      </Group>
 
-      <ul className="issue-list">
+      <Stack gap="xs">
         {visible.length === 0 ? (
-          <li className="issue-row" style={{ color: '#888', justifyContent: 'center' }}>
-            No issues
-          </li>
+          <Text c="dimmed" size="sm" ta="center" py="md">No issues</Text>
         ) : (
           visible.map((issue) => (
-            <li key={issue.id} className={`issue-row${issue.status === 'closed' ? ' issue-row--closed' : ''}`}>
-              <span
-                className={`issue-status-icon issue-status-icon--${issue.status}`}
-                aria-label={issue.status}
-              >
-                {issue.status === 'open' ? '●' : '◉'}
-              </span>
-              <div className="issue-info">
-                <button className="issue-title" onClick={() => onSelect(issue.id)}>
-                  {issue.title}
-                </button>
-                <div className="issue-meta">
-                  <span className="issue-number">#{issue.number}</span>
-                  <span>{issue.status === 'open' ? 'opened' : 'closed'} {formatRelativeDate(issue.createdAt)} by {issue.authorName || 'unknown'}</span>
-                  {issue.comments.length > 0 && (
-                    <span className="issue-comment-count">💬 {issue.comments.length}</span>
-                  )}
-                </div>
-              </div>
-            </li>
+            <Card key={issue.id} padding="xs" withBorder radius="sm" style={{ opacity: issue.status === 'closed' ? 0.6 : 1 }}>
+              <Group gap="xs" wrap="nowrap" align="flex-start">
+                <Text size="sm" c={issue.status === 'open' ? 'green' : 'gray'} style={{ flexShrink: 0, paddingTop: 2 }}>
+                  {issue.status === 'open' ? '●' : '◉'}
+                </Text>
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                  <Button
+                    variant="transparent"
+                    size="xs"
+                    p={0}
+                    style={{ fontWeight: 500, textAlign: 'left' }}
+                    onClick={() => onSelect(issue.id)}
+                  >
+                    {issue.title}
+                  </Button>
+                  <Group gap={6} mt={2}>
+                    <Text size="xs" c="dimmed">#{issue.number}</Text>
+                    <Text size="xs" c="dimmed">
+                      {issue.status === 'open' ? 'opened' : 'closed'} {formatAbsoluteDate(issue.createdAt)} by {issue.authorName || 'unknown'}
+                    </Text>
+                    {issue.comments.length > 0 && (
+                      <Text size="xs" c="dimmed">💬 {issue.comments.length}</Text>
+                    )}
+                  </Group>
+                </Box>
+              </Group>
+            </Card>
           ))
         )}
-      </ul>
-    </div>
+      </Stack>
+    </Box>
   )
 }
 
 // ---- New Issue Form ----
 function NewIssueForm({
-  onSubmit,
-  onCancel
+  onSubmit, onCancel
 }: {
   onSubmit: (title: string, body: string, labels: string[]) => Promise<void>
   onCancel: () => void
@@ -113,97 +107,87 @@ function NewIssueForm({
 
   const handleAddLabel = (): void => {
     const l = labelInput.trim()
-    if (l && !labels.includes(l)) {
-      setLabels((prev) => [...prev, l])
-    }
+    if (l && !labels.includes(l)) setLabels((prev) => [...prev, l])
     setLabelInput('')
   }
 
   const handleSubmit = async (): Promise<void> => {
     if (!title.trim()) return
     setSubmitting(true)
-    try {
-      await onSubmit(title.trim(), body.trim(), labels)
-    } finally {
-      setSubmitting(false)
-    }
+    try { await onSubmit(title.trim(), body.trim(), labels) } finally { setSubmitting(false) }
   }
 
   return (
-    <div className="issue-form">
-      <div className="issue-form-header">
-        <button className="issue-form-back" onClick={onCancel}>← Issues</button>
-        <h2 style={{ margin: 0, fontSize: 16 }}>New Issue</h2>
-      </div>
+    <Box p="md">
+      <Group mb="sm">
+        <Button variant="subtle" size="xs" onClick={onCancel} px={4}>← Issues</Button>
+        <Text fw={600} size="sm">New Issue</Text>
+      </Group>
 
-      <div className="issue-form-body">
-        <label style={{ fontSize: 12, color: '#8b949e', display: 'block', marginBottom: 4 }}>Title</label>
-        <input
-          className="issue-form-title-input"
-          type="text"
+      <Stack gap="sm">
+        <TextInput
+          label="Title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Issue title"
+          size="xs"
           autoFocus
         />
 
-        <label style={{ fontSize: 12, color: '#8b949e', display: 'block', margin: '12px 0 4px' }}>
-          Description
-        </label>
-        <textarea
-          className="issue-form-textarea"
+        <Textarea
+          label="Description"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Leave a comment"
           rows={6}
+          size="xs"
         />
 
-        <label style={{ fontSize: 12, color: '#8b949e', display: 'block', margin: '12px 0 4px' }}>
-          Labels
-        </label>
-        <div className="issue-labels-editor">
-          {labels.map((l) => (
-            <span key={l} className="issue-label-tag">
-              {l}
-              <button
-                onClick={() => setLabels((prev) => prev.filter((x) => x !== l))}
-                style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', padding: '0 2px', fontSize: 12 }}
+        <Box>
+          <Text size="xs" c="dimmed" mb={4}>Labels</Text>
+          <Group gap={4} mb={4}>
+            {labels.map((l) => (
+              <Badge
+                key={l}
+                size="xs"
+                variant="light"
+                rightSection={
+                  <button
+                    onClick={() => setLabels((prev) => prev.filter((x) => x !== l))}
+                    style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 11 }}
+                  >
+                    ×
+                  </button>
+                }
               >
-                ×
-              </button>
-            </span>
-          ))}
-          <input
-            type="text"
+                {l}
+              </Badge>
+            ))}
+          </Group>
+          <TextInput
             value={labelInput}
             onChange={(e) => setLabelInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddLabel() } }}
             placeholder="Add label..."
-            style={{ border: 'none', background: 'none', color: '#e0e0e0', outline: 'none', fontSize: 13, minWidth: 80 }}
+            size="xs"
+            w={160}
           />
-        </div>
+        </Box>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <button
-            className="issue-submit-btn"
-            onClick={handleSubmit}
-            disabled={!title.trim() || submitting}
-          >
+        <Group gap="xs">
+          <Button size="xs" onClick={handleSubmit} disabled={!title.trim() || submitting}>
             {submitting ? 'Submitting...' : 'Submit New Issue'}
-          </button>
-          <button className="btn-cancel" onClick={onCancel}>Cancel</button>
-        </div>
-      </div>
-    </div>
+          </Button>
+          <Button size="xs" variant="default" onClick={onCancel}>Cancel</Button>
+        </Group>
+      </Stack>
+    </Box>
   )
 }
 
 // ---- Issue Detail View ----
 function IssueDetailView({
-  issue,
-  onBack,
-  onUpdate,
-  onAddComment
+  issue, onBack, onUpdate, onAddComment
 }: {
   issue: Issue
   onBack: () => void
@@ -223,9 +207,7 @@ function IssueDetailView({
       const closedAt = newStatus === 'closed' ? new Date().toISOString() : null
       await onUpdate({ status: newStatus, closedAt })
       setStatus(newStatus)
-    } finally {
-      setTogglingStatus(false)
-    }
+    } finally { setTogglingStatus(false) }
   }
 
   const handlePostComment = async (): Promise<void> => {
@@ -236,104 +218,102 @@ function IssueDetailView({
       const newComment = await onAddComment(body)
       setComments((prev) => [...prev, newComment])
       setCommentBody('')
-    } finally {
-      setSubmittingComment(false)
-    }
+    } finally { setSubmittingComment(false) }
   }
 
   return (
-    <div className="issue-detail">
-      <button className="issue-form-back" onClick={onBack}>← Issues</button>
+    <Box p="md">
+      <Button variant="subtle" size="xs" onClick={onBack} px={4} mb="sm">← Issues</Button>
 
-      <div className="issue-detail-header">
-        <h2 className="issue-detail-title">
+      <Group gap="xs" align="flex-start" mb="xs">
+        <Text fw={600} size="sm" style={{ flex: 1 }}>
           {issue.title}
-          <span style={{ color: '#8b949e', fontWeight: 400, marginLeft: 8 }}>#{issue.number}</span>
-        </h2>
-        <span className={`issue-status-badge issue-status-badge--${status}`}>
+          <Text span c="dimmed" fw={400} ml={6}>#{issue.number}</Text>
+        </Text>
+        <Badge
+          size="sm"
+          color={status === 'open' ? 'green' : 'gray'}
+          variant="filled"
+        >
           {status === 'open' ? '● Open' : '◉ Closed'}
-        </span>
-      </div>
+        </Badge>
+      </Group>
 
-      <div className="issue-meta" style={{ marginBottom: 16 }}>
-        <span>{status === 'open' ? 'Opened' : 'Closed'} {formatRelativeDate(issue.createdAt)} by {issue.authorName || 'unknown'}</span>
-        {issue.labels.length > 0 && (
-          <span style={{ marginLeft: 8 }}>
-            {issue.labels.map((l) => (
-              <span key={l} className="issue-label-tag" style={{ marginLeft: 4 }}>{l}</span>
-            ))}
-          </span>
-        )}
-      </div>
+      <Group gap="xs" mb="md">
+        <Text size="xs" c="dimmed">
+          {status === 'open' ? 'Opened' : 'Closed'} {formatAbsoluteDate(issue.createdAt)} by {issue.authorName || 'unknown'}
+        </Text>
+        {issue.labels.map((l) => (
+          <Badge key={l} size="xs" variant="outline">{l}</Badge>
+        ))}
+      </Group>
 
       {issue.body && (
-        <div className="issue-body">
+        <Card withBorder padding="sm" mb="md" radius="sm">
           {issue.body.split('\n').map((line, i) => (
-            <p key={i} style={{ margin: '0 0 4px' }}>{line}</p>
+            <Text key={i} size="xs" mb={2}>{line}</Text>
           ))}
-        </div>
+        </Card>
       )}
 
-      <button
-        className="issue-close-btn"
+      <Button
+        size="xs"
+        variant="default"
         onClick={handleToggleStatus}
         disabled={togglingStatus}
+        mb="md"
       >
-        {togglingStatus
-          ? '...'
-          : status === 'open'
-          ? 'Close Issue'
-          : 'Reopen Issue'}
-      </button>
+        {togglingStatus ? '...' : status === 'open' ? 'Close Issue' : 'Reopen Issue'}
+      </Button>
 
-      {/* Comment thread */}
+      {/* Comments */}
       {comments.length > 0 && (
-        <div className="issue-comments">
+        <Stack gap="sm" mb="md">
+          <Divider label="Comments" labelPosition="left" />
           {comments.map((c) => (
-            <div key={c.id} className="issue-comment-item">
-              <div className="issue-comment-avatar">
+            <Group key={c.id} gap="xs" align="flex-start">
+              <Avatar size="sm" radius="xl" color="blue">
                 {getInitials(c.authorName)}
-              </div>
-              <div className="issue-comment-bubble">
-                <div className="issue-comment-header">
-                  <span className="issue-comment-author">{c.authorName || 'unknown'}</span>
-                  <span className="issue-comment-time">{formatRelativeDate(c.createdAt)}</span>
-                </div>
-                <div className="issue-comment-body">
-                  {c.body.split('\n').map((line, i) => (
-                    <p key={i} style={{ margin: '0 0 4px' }}>{line}</p>
-                  ))}
-                </div>
-              </div>
-            </div>
+              </Avatar>
+              <Card withBorder padding="xs" radius="sm" style={{ flex: 1 }}>
+                <Group gap="xs" mb={4}>
+                  <Text size="xs" fw={600}>{c.authorName || 'unknown'}</Text>
+                  <Text size="xs" c="dimmed">{formatAbsoluteDate(c.createdAt)}</Text>
+                </Group>
+                {c.body.split('\n').map((line, i) => (
+                  <Text key={i} size="xs" mb={2}>{line}</Text>
+                ))}
+              </Card>
+            </Group>
           ))}
-        </div>
+        </Stack>
       )}
 
       {/* New comment form */}
-      <div className="issue-comment-form">
-        <textarea
+      <Stack gap="xs">
+        <Textarea
           value={commentBody}
           onChange={(e) => setCommentBody(e.target.value)}
           placeholder="Leave a comment..."
           rows={4}
+          size="xs"
         />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-          <button
-            className="issue-submit-btn"
+        <Group justify="flex-end">
+          <Button
+            size="xs"
             onClick={handlePostComment}
             disabled={!commentBody.trim() || submittingComment}
           >
             {submittingComment ? 'Posting...' : 'Comment'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </Group>
+      </Stack>
+    </Box>
   )
 }
 
 // ---- IssuesTab (root component) ----
-export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.Element {
+export function IssuesTab({ projectId, onOpenCountChange }: Props): JSX.Element {
   const { listIssues, createIssue, updateIssue, addIssueComment } = useData()
   const [issues, setIssues] = useState<Issue[]>([])
   const [loading, setLoading] = useState(true)
@@ -342,25 +322,17 @@ export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.
 
   const loadIssues = useCallback(async () => {
     setLoading(true)
-    try {
-      const result = await listIssues(projectId, taskId)
-      setIssues(result)
-    } finally {
-      setLoading(false)
-    }
-  }, [listIssues, projectId, taskId])
+    try { setIssues(await listIssues(projectId, null)) } finally { setLoading(false) }
+  }, [listIssues, projectId])
+
+  useEffect(() => { loadIssues() }, [loadIssues])
 
   useEffect(() => {
-    loadIssues()
-  }, [loadIssues])
-
-  useEffect(() => {
-    const openCount = issues.filter((i) => i.status === 'open').length
-    onOpenCountChange?.(openCount)
+    onOpenCountChange?.(issues.filter((i) => i.status === 'open').length)
   }, [issues, onOpenCountChange])
 
   const handleCreate = async (title: string, body: string, labels: string[]): Promise<void> => {
-    const newIssue = await createIssue(projectId, taskId, { title, body, labels })
+    const newIssue = await createIssue(projectId, null, { title, body, labels })
     setIssues((prev) => [...prev, newIssue])
     setView({ type: 'list' })
   }
@@ -375,21 +347,16 @@ export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.
   }
 
   if (loading) {
-    return <div className="loading-screen">Loading issues...</div>
+    return <Center p="xl"><Loader size="sm" /></Center>
   }
 
   if (view.type === 'new') {
-    return (
-      <NewIssueForm
-        onSubmit={handleCreate}
-        onCancel={() => setView({ type: 'list' })}
-      />
-    )
+    return <NewIssueForm onSubmit={handleCreate} onCancel={() => setView({ type: 'list' })} />
   }
 
   if (view.type === 'detail') {
     const issue = issues.find((i) => i.id === view.issueId)
-    if (!issue) return <div>Issue not found</div>
+    if (!issue) return <Text p="md" c="dimmed" size="sm">Issue not found</Text>
     return (
       <IssueDetailView
         issue={issue}
@@ -400,7 +367,6 @@ export function IssuesTab({ projectId, taskId, onOpenCountChange }: Props): JSX.
     )
   }
 
-  // list view
   return (
     <IssueListView
       issues={issues}

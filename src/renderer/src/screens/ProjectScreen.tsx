@@ -1,8 +1,13 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
+import {
+  Tabs, Box, Group, Title, Button, Text, TextInput,
+  Checkbox, Select, Badge, Stack
+} from '@mantine/core'
 import { useData } from '../context/DataContext'
 import { TaskItem } from '../components/TaskItem'
+import { IssuesTab } from '../components/IssuesTab'
 import { ErrorBanner } from '../components/ErrorBanner'
 import type { Task } from '../types'
 
@@ -25,7 +30,7 @@ function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] 
 
 export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Element {
   const { projects, tasksByProject, createTask, updateTask, saveProjectData } = useData()
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<string>('tasks')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem(`laurel:expand:${projectId}`)
     return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>()
@@ -33,7 +38,7 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
   const [showCompletedTasks, setShowCompletedTasks] = useState(true)
   const [showAddRootForm, setShowAddRootForm] = useState(false)
   const [rootTaskTitle, setRootTaskTitle] = useState('')
-  const [filterGenre, setFilterGenre] = useState<string>('')
+  const [filterGenre, setFilterGenre] = useState<string | null>(null)
   const [filterTags, setFilterTags] = useState<string[]>([])
   const [saveError, setSaveError] = useState<string | null>(null)
   const rootInputRef = useRef<HTMLInputElement>(null)
@@ -41,9 +46,8 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
   const project = projects.find((p) => p.id === projectId)
   const allTasks = tasksByProject[projectId] ?? []
 
-  // Reset filters and restore expand state when projectId changes
   useEffect(() => {
-    setFilterGenre('')
+    setFilterGenre(null)
     setFilterTags([])
     const saved = localStorage.getItem(`laurel:expand:${projectId}`)
     setExpandedIds(saved ? new Set<string>(JSON.parse(saved)) : new Set<string>())
@@ -59,7 +63,6 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
     })
   }
 
-  // Collect available genres and tags from tasks
   const availableGenres = useMemo(() => {
     const genres = new Set<string>()
     allTasks.forEach((t) => { if (t.genre) genres.add(t.genre) })
@@ -137,108 +140,147 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
 
   if (!project) {
     return (
-      <div className="project-screen">
-        <p>プロジェクトが見つかりません</p>
-      </div>
+      <Box p="md">
+        <Text c="dimmed" size="sm">プロジェクトが見つかりません</Text>
+      </Box>
     )
   }
 
   return (
-    <div className="project-screen">
-      <header className="project-header">
-        <h1>{project.name}</h1>
-      </header>
+    <Box style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box px="md" pt="md" pb={0}>
+        <Title order={4} mb="xs">{project.name}</Title>
+      </Box>
 
-      {saveError && (
-        <ErrorBanner
-          level="critical"
-          message={`保存に失敗しました: ${saveError}`}
-          onClose={() => setSaveError(null)}
-          onRetry={handleRetry}
-        />
-      )}
+      <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? 'tasks')} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <Box px="md">
+          <Tabs.List>
+            <Tabs.Tab value="tasks">Tasks</Tabs.Tab>
+            <Tabs.Tab value="gantt">Gantt</Tabs.Tab>
+            <Tabs.Tab value="issues">Issues</Tabs.Tab>
+          </Tabs.List>
+        </Box>
 
-      <div className="task-toolbar">
-        <button
-          className="toggle-completed-btn"
-          onClick={() => setShowCompletedTasks((v) => !v)}
-        >
-          {showCompletedTasks ? '完了を隠す' : '完了を表示'}
-        </button>
+        <Tabs.Panel value="issues" style={{ flex: 1, overflow: 'auto' }}>
+          <IssuesTab projectId={projectId} />
+        </Tabs.Panel>
 
-        {availableGenres.length > 0 && (
-          <select value={filterGenre} onChange={(e) => setFilterGenre(e.target.value)}>
-            <option value="">すべてのジャンル</option>
-            {availableGenres.map((g) => <option key={g} value={g}>{g}</option>)}
-          </select>
-        )}
+        <Tabs.Panel value="gantt" style={{ flex: 1 }}>
+          <Box p="xl" style={{ textAlign: 'center' }}>
+            <Text c="dimmed" size="sm">Gantt chart は近日公開予定です</Text>
+          </Box>
+        </Tabs.Panel>
 
-        {availableTags.length > 0 && (
-          <div className="tag-filter">
-            {availableTags.map((tag) => (
-              <label key={tag} className={`tag-filter-item ${filterTags.includes(tag) ? 'tag-filter-item--active' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={filterTags.includes(tag)}
-                  onChange={(e) =>
-                    setFilterTags((prev) =>
-                      e.target.checked ? [...prev, tag] : prev.filter((t) => t !== tag)
-                    )
-                  }
+        <Tabs.Panel value="tasks" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <Stack gap={0} style={{ flex: 1, minHeight: 0 }}>
+            {saveError && (
+              <Box px="md" pt="xs">
+                <ErrorBanner
+                  level="critical"
+                  message={`保存に失敗しました: ${saveError}`}
+                  onClose={() => setSaveError(null)}
+                  onRetry={handleRetry}
                 />
-                {tag}
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
+              </Box>
+            )}
 
-      <div className="task-list">
-        {rootTasks.length === 0 ? (
-          <p className="empty-message">
-            {showCompletedTasks ? 'タスクはまだありません' : '該当するタスクがありません'}
-          </p>
-        ) : (
-          <DndContext collisionDetection={closestCenter} onDragEnd={handleRootDragEnd}>
-            <SortableContext items={rootTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              {rootTasks.map((task: Task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  depth={1}
-                  allTasks={filteredTasks}
-                  editingTaskId={editingTaskId}
-                  onEditStart={(id) => setEditingTaskId(id)}
-                  onEditEnd={() => setEditingTaskId(null)}
-                  onSaveError={(msg) => setSaveError(msg)}
-                  expandedIds={expandedIds}
-                  onToggleExpand={handleToggleExpand}
-                  onNavigate={(taskId) => onNavigateToTask(projectId, taskId)}
+            {/* Toolbar */}
+            <Box px="md" py="xs" style={{ borderBottom: '1px solid var(--mantine-color-dark-5)' }}>
+              <Group gap="sm" wrap="wrap">
+                <Checkbox
+                  label="完了タスクを表示"
+                  checked={showCompletedTasks}
+                  onChange={(e) => setShowCompletedTasks(e.currentTarget.checked)}
+                  size="xs"
                 />
-              ))}
-            </SortableContext>
-          </DndContext>
-        )}
 
-        {showAddRootForm ? (
-          <div className="root-task-form">
-            <input
-              ref={rootInputRef}
-              type="text"
-              value={rootTaskTitle}
-              onChange={(e) => setRootTaskTitle(e.target.value)}
-              onKeyDown={handleRootKeyDown}
-              placeholder="タスク名"
-            />
-            <button onClick={handleAddRootTask}>追加</button>
-            <button onClick={() => { setRootTaskTitle(''); setShowAddRootForm(false) }}>キャンセル</button>
-          </div>
-        ) : (
-          <button className="add-task-btn" onClick={() => setShowAddRootForm(true)}>
-            ＋ タスクを追加
-          </button>
-        )}
-      </div>
-    </div>
+                {availableGenres.length > 0 && (
+                  <Select
+                    placeholder="すべてのジャンル"
+                    data={availableGenres.map((g) => ({ value: g, label: g }))}
+                    value={filterGenre}
+                    onChange={setFilterGenre}
+                    size="xs"
+                    clearable
+                    w={160}
+                  />
+                )}
+
+                {availableTags.length > 0 && (
+                  <Group gap={4}>
+                    {availableTags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        size="sm"
+                        variant={filterTags.includes(tag) ? 'filled' : 'outline'}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() =>
+                          setFilterTags((prev) =>
+                            prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+                          )
+                        }
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </Group>
+                )}
+              </Group>
+            </Box>
+
+            {/* Task list */}
+            <Box style={{ flex: 1, overflowY: 'auto' }} px="md" py="xs">
+              {rootTasks.length === 0 ? (
+                <Text c="dimmed" size="sm" mt="md">
+                  {showCompletedTasks ? 'タスクはまだありません' : '該当するタスクがありません'}
+                </Text>
+              ) : (
+                <DndContext collisionDetection={closestCenter} onDragEnd={handleRootDragEnd}>
+                  <SortableContext items={rootTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                    {rootTasks.map((task: Task) => (
+                      <TaskItem
+                        key={task.id}
+                        task={task}
+                        depth={1}
+                        allTasks={filteredTasks}
+                        onSaveError={(msg) => setSaveError(msg)}
+                        expandedIds={expandedIds}
+                        onToggleExpand={handleToggleExpand}
+                        onNavigate={(taskId) => onNavigateToTask(projectId, taskId)}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              )}
+
+              {showAddRootForm ? (
+                <Group gap="xs" mt="xs">
+                  <TextInput
+                    ref={rootInputRef}
+                    value={rootTaskTitle}
+                    onChange={(e) => setRootTaskTitle(e.target.value)}
+                    onKeyDown={handleRootKeyDown}
+                    placeholder="タスク名"
+                    size="xs"
+                    style={{ flex: 1 }}
+                  />
+                  <Button size="xs" onClick={handleAddRootTask}>追加</Button>
+                  <Button size="xs" variant="default" onClick={() => { setRootTaskTitle(''); setShowAddRootForm(false) }}>キャンセル</Button>
+                </Group>
+              ) : (
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  mt="xs"
+                  onClick={() => setShowAddRootForm(true)}
+                >
+                  ＋ タスクを追加
+                </Button>
+              )}
+            </Box>
+          </Stack>
+        </Tabs.Panel>
+      </Tabs>
+    </Box>
   )
 }

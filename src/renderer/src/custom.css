@@ -1,0 +1,450 @@
+/* ===== Root height override for AppShell ===== */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* AppShell main area: full height with scroll */
+.mantine-AppShell-root {
+  height: 100%;
+}
+
+.mantine-AppShell-main {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* date input (native, still used in TaskDetailScreen) */
+input[type="date"] {
+  font-family: inherit;
+  font-size: 12px;
+  background-color: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+
+/* ===== Task Item & Tree Lines ===== */
+
+.task-item {
+  position: relative;
+  border-radius: 5px;
+}
+
+.task-item > .task-item {
+  margin-left: 12px;
+}
+
+.task-item > .task-item::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: -6px;
+  top: 0;
+  width: 1px;
+  background-color: #3a3a3a;
+  pointer-events: none;
+}
+
+.task-item > .task-item:not(:last-child)::before {
+  height: 100%;
+}
+
+.task-item > .task-item:last-child::before {
+  height: 18px;
+}
+
+.task-item > .task-item::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: -6px;
+  top: 17px;
+  width: 6px;
+  height: 1px;
+  background-color: #3a3a3a;
+  pointer-events: none;
+}
+
+/* ===== Task Row Layout ===== */
+
+.task-row .mantine-Badge-root {
+  border-radius: 3px;
+  padding: 0 6px;
+  height: 20px;
+}
+
+.task-row {
+  display: grid;
+  grid-template-columns: 24px 20px 40px minmax(0, 1fr) 88px 65px 80px 46px;
+  align-items: center;
+  gap: 0 6px;
+  padding: 5px 8px;
+  background-color: var(--mantine-color-dark-7);
+  border: 1px solid var(--mantine-color-dark-5);
+  border-radius: 5px;
+  min-height: 34px;
+}
+
+.task-row:hover {
+  border-color: var(--mantine-color-dark-4);
+  background-color: var(--mantine-color-dark-6);
+}
+
+/* ===== Task Row: individual cells ===== */
+
+.expand-toggle-placeholder {
+  display: inline-block;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.task-genre-slot {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  position: relative;
+}
+
+.task-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.task-title {
+  font-size: 13px;
+  color: var(--mantine-color-dark-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.task-title--link {
+  background: none;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  font-size: 13px;
+}
+
+.task-title--link:hover {
+  color: var(--mantine-color-blue-4);
+  text-decoration: underline;
+}
+
+.task-title-input {
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  background-color: var(--mantine-color-dark-6);
+  border: 1px solid var(--mantine-color-dark-3);
+  border-radius: 3px;
+  color: var(--mantine-color-dark-0);
+  outline: none;
+}
+
+.task-title-edit-btn {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.task-row:hover .task-title-edit-btn {
+  opacity: 1;
+}
+
+.task-due-date,
+.task-occurred-at {
+  font-size: 11px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.task-date-add--ghost {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.task-row:hover .task-date-add--ghost {
+  opacity: 1;
+}
+
+.task-due-date-input {
+  font-size: 12px;
+  border: 1px solid var(--mantine-color-dark-3);
+  border-radius: 4px;
+  padding: 2px 6px;
+  background-color: var(--mantine-color-dark-6);
+  color: var(--mantine-color-dark-0);
+  outline: none;
+}
+
+.task-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.task-tag-add-btn {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.task-row:hover .task-tag-add-btn {
+  opacity: 1;
+}
+
+.task-tag-input {
+  width: 70px;
+  font-size: 11px;
+  padding: 1px 4px;
+  border: 1px solid var(--mantine-color-dark-3);
+  border-radius: 3px;
+  background-color: var(--mantine-color-dark-6);
+  color: var(--mantine-color-dark-0);
+  outline: none;
+}
+
+.tag-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background-color: var(--mantine-color-dark-6);
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 120px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tag-suggestions li button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--mantine-color-dark-1);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tag-suggestions li button:hover {
+  background-color: var(--mantine-color-dark-5);
+}
+
+.task-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.task-row:hover .task-actions {
+  opacity: 1;
+}
+
+.subtask-form {
+  padding: 6px 8px;
+  background-color: var(--mantine-color-dark-7);
+  border: 1px solid var(--mantine-color-dark-5);
+  border-radius: 5px;
+  margin-top: 4px;
+}
+
+/* ===== task-info-date-input (TaskDetailScreen) ===== */
+
+.task-info-date-input {
+  font-size: 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+  color: var(--mantine-color-dark-1);
+  padding: 1px 2px;
+  cursor: pointer;
+  outline: none;
+}
+
+.task-info-date-input:focus {
+  border-bottom-color: var(--mantine-color-blue-5);
+}
+
+/* ===== Kanban Board ===== */
+
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  height: 100%;
+  overflow-x: auto;
+}
+
+.kanban-card--dragging {
+  opacity: 0.3;
+}
+
+/* ===== Markdown ===== */
+
+.markdown-file-box {
+  border: 1px solid var(--mantine-color-dark-5);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.markdown-file-content {
+  background-color: var(--mantine-color-dark-8);
+  border-radius: 0 0 6px 6px;
+}
+
+.markdown-tab-editor {
+  width: 100%;
+  min-height: 320px;
+  background: var(--mantine-color-dark-8);
+  color: var(--mantine-color-dark-0);
+  border: none;
+  border-radius: 0;
+  padding: 16px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.markdown-tab-preview {
+  padding: 16px;
+}
+
+/* GitHub-style Markdown preview */
+.markdown-body {
+  color: var(--mantine-color-dark-0);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  color: #f0f0f0;
+  font-weight: 600;
+  margin: 20px 0 8px;
+  line-height: 1.3;
+}
+
+.markdown-body h1 { font-size: 22px; border-bottom: 1px solid var(--mantine-color-dark-4); padding-bottom: 6px; }
+.markdown-body h2 { font-size: 18px; border-bottom: 1px solid var(--mantine-color-dark-5); padding-bottom: 4px; }
+.markdown-body h3 { font-size: 15px; }
+
+.markdown-body p { margin: 0 0 12px; }
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0 0 12px;
+  padding-left: 24px;
+}
+
+.markdown-body li { margin: 4px 0; }
+
+.markdown-body code {
+  background: var(--mantine-color-dark-6);
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 12px;
+  color: #d4a5a5;
+}
+
+.markdown-body pre {
+  background: var(--mantine-color-dark-8);
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: 6px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+
+.markdown-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #c9d1d9;
+  font-size: 12px;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--mantine-color-dark-3);
+  margin: 0 0 12px;
+  padding: 4px 16px;
+  color: var(--mantine-color-dark-2);
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--mantine-color-dark-4);
+  margin: 16px 0;
+}
+
+.markdown-body a {
+  color: var(--mantine-color-blue-4);
+  text-decoration: none;
+}
+
+.markdown-body a:hover { text-decoration: underline; }
+
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--mantine-color-dark-4);
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--mantine-color-dark-7);
+  font-weight: 600;
+}
+
+.markdown-body tr:nth-child(even) {
+  background: var(--mantine-color-dark-8);
+}
+

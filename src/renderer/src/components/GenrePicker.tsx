@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
+import { Menu, Group, Text, UnstyledButton, TextInput, ActionIcon } from '@mantine/core'
 import type { Genre } from '../types'
 
 type Props = {
@@ -9,13 +10,9 @@ type Props = {
 }
 
 export function GenrePicker({ value, genres, onChange, onAddGenre }: Props): JSX.Element {
-  const [open, setOpen] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newName, setNewName] = useState('')
-  const containerRef = useRef<HTMLDivElement>(null)
-  const addInputRef = useRef<HTMLInputElement>(null)
 
-  // Build display list: registered genres + any unregistered value from existing task
   const displayGenres: Genre[] = [...genres]
   if (value && !genres.some((g) => g.name === value)) {
     displayGenres.push({ name: value, color: '#6b7280' })
@@ -23,37 +20,8 @@ export function GenrePicker({ value, genres, onChange, onAddGenre }: Props): JSX
 
   const selectedGenre = displayGenres.find((g) => g.name === value) ?? null
 
-  const close = (): void => {
-    setOpen(false)
-    setShowAddForm(false)
-    setNewName('')
-  }
-
-  // Close on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent): void => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        close()
-      }
-    }
-    const handleKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') close()
-    }
-    document.addEventListener('mousedown', handleClick)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleClick)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (showAddForm) addInputRef.current?.focus()
-  }, [showAddForm])
-
   const handleSelect = (name: string | null): void => {
     onChange(name)
-    setOpen(false)
     setShowAddForm(false)
     setNewName('')
   }
@@ -63,82 +31,71 @@ export function GenrePicker({ value, genres, onChange, onAddGenre }: Props): JSX
     if (!name) return
     await onAddGenre(name)
     onChange(name)
-    setOpen(false)
     setShowAddForm(false)
     setNewName('')
   }
 
-  const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter') { e.preventDefault(); handleAddSubmit() }
-    // Escape is handled by global keydown listener
-  }
-
   return (
-    <div className="genre-picker" ref={containerRef}>
-      <button
-        type="button"
-        className="genre-picker-trigger"
-        onClick={() => { setOpen((v) => !v); setShowAddForm(false) }}
-      >
-        {selectedGenre ? (
-          <>
-            <span className="genre-picker-swatch" style={{ backgroundColor: selectedGenre.color }} />
-            <span>{selectedGenre.name}</span>
-          </>
-        ) : (
-          <span className="genre-picker-placeholder">ジャンルなし</span>
-        )}
-        <span className="genre-picker-arrow">▾</span>
-      </button>
-
-      {open && (
-        <div className="genre-picker-dropdown">
-          <button
-            type="button"
-            className={`genre-picker-option${value === null ? ' genre-picker-option--selected' : ''}`}
-            onClick={() => handleSelect(null)}
-          >
-            <span className="genre-picker-option-name">ジャンルなし</span>
-          </button>
-
-          {displayGenres.map((g) => (
-            <button
-              key={g.name}
-              type="button"
-              className={`genre-picker-option${value === g.name ? ' genre-picker-option--selected' : ''}`}
-              onClick={() => handleSelect(g.name)}
-            >
-              <span className="genre-picker-swatch" style={{ backgroundColor: g.color }} />
-              <span className="genre-picker-option-name">{g.name}</span>
-            </button>
-          ))}
-
-          <div className="genre-picker-divider" />
-
-          {showAddForm ? (
-            <div className="genre-picker-add-form">
-              <input
-                ref={addInputRef}
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={handleAddKeyDown}
-                placeholder="ジャンル名"
-              />
-              <button type="button" onClick={handleAddSubmit}>追加</button>
-              <button type="button" onClick={() => { setShowAddForm(false); setNewName('') }}>✕</button>
-            </div>
+    <Menu
+      shadow="md"
+      width={180}
+      onClose={() => { setShowAddForm(false); setNewName('') }}
+    >
+      <Menu.Target>
+        <UnstyledButton
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '2px 8px', borderRadius: 4,
+            border: '1px solid var(--mantine-color-dark-4)',
+            fontSize: 12, color: 'var(--mantine-color-dark-1)'
+          }}
+        >
+          {selectedGenre ? (
+            <>
+              <span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: selectedGenre.color, display: 'inline-block', flexShrink: 0 }} />
+              <span>{selectedGenre.name}</span>
+            </>
           ) : (
-            <button
-              type="button"
-              className="genre-picker-add-btn"
-              onClick={() => setShowAddForm(true)}
-            >
-              + 新しいジャンルを追加
-            </button>
+            <Text size="xs" c="dimmed">ジャンルなし</Text>
           )}
-        </div>
-      )}
-    </div>
+          <Text size="xs" c="dimmed" ml={4}>▾</Text>
+        </UnstyledButton>
+      </Menu.Target>
+
+      <Menu.Dropdown>
+        <Menu.Item onClick={() => handleSelect(null)}>
+          <Text size="xs" c="dimmed">ジャンルなし</Text>
+        </Menu.Item>
+        {displayGenres.map((g) => (
+          <Menu.Item
+            key={g.name}
+            onClick={() => handleSelect(g.name)}
+            leftSection={<span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: g.color, display: 'inline-block' }} />}
+          >
+            <Text size="xs" fw={value === g.name ? 700 : 400}>{g.name}</Text>
+          </Menu.Item>
+        ))}
+        <Menu.Divider />
+        {showAddForm ? (
+          <Group gap={4} px={8} py={4}>
+            <TextInput
+              size="xs"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubmit() } }}
+              placeholder="ジャンル名"
+              autoFocus
+              style={{ flex: 1 }}
+            />
+            <ActionIcon size="xs" onClick={handleAddSubmit}>✓</ActionIcon>
+            <ActionIcon size="xs" onClick={() => { setShowAddForm(false); setNewName('') }}>✕</ActionIcon>
+          </Group>
+        ) : (
+          <Menu.Item onClick={() => setShowAddForm(true)}>
+            <Text size="xs">+ 新しいジャンルを追加</Text>
+          </Menu.Item>
+        )}
+      </Menu.Dropdown>
+    </Menu>
   )
 }

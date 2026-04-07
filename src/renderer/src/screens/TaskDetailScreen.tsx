@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
+import {
+  Tabs, Box, Group, Text, Button, TextInput,
+  Badge, ActionIcon, Breadcrumbs, Stack
+} from '@mantine/core'
+import { IconArrowLeft, IconX } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
 import { GenrePicker } from '../components/GenrePicker'
 import { KanbanView } from '../components/KanbanView'
-import { IssuesTab } from '../components/IssuesTab'
 import { MarkdownTab } from '../components/MarkdownTab'
 import type { Task } from '../types'
 
@@ -15,148 +19,134 @@ type HeaderProps = {
 
 function TaskInfoHeader({ task, projectId }: HeaderProps): JSX.Element {
   const { updateTask, genres, addGenre } = useData()
-  const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
-  const [editGenre, setEditGenre] = useState(task.genre ?? '')
-  const [editTags, setEditTags] = useState<string[]>(task.tags)
-  const [editOccurredAt, setEditOccurredAt] = useState(task.occurredAt ?? '')
-  const [editDueAt, setEditDueAt] = useState(task.dueAt ?? '')
+  const [editingTitle, setEditingTitle] = useState(false)
   const [newTag, setNewTag] = useState('')
   const titleRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!editing) {
-      setEditTitle(task.title)
-      setEditGenre(task.genre ?? '')
-      setEditTags(task.tags)
-      setEditOccurredAt(task.occurredAt ?? '')
-      setEditDueAt(task.dueAt ?? '')
-    }
-  }, [task, editing])
+    if (!editingTitle) setEditTitle(task.title)
+  }, [task.title, editingTitle])
 
   useEffect(() => {
-    if (editing) titleRef.current?.focus()
-  }, [editing])
+    if (editingTitle) titleRef.current?.focus()
+  }, [editingTitle])
 
-  const handleSave = async (): Promise<void> => {
+  const saveTitle = async (): Promise<void> => {
     const title = editTitle.trim()
-    if (!title) return
-    await updateTask(projectId, task.id, {
-      title,
-      genre: editGenre.trim() || null,
-      tags: editTags,
-      occurredAt: editOccurredAt || null,
-      dueAt: editDueAt || null
-    })
-    setEditing(false)
+    if (!title || title === task.title) { setEditingTitle(false); return }
+    await updateTask(projectId, task.id, { title })
+    setEditingTitle(false)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter') handleSave()
-    if (e.key === 'Escape') setEditing(false)
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') saveTitle()
+    if (e.key === 'Escape') { setEditTitle(task.title); setEditingTitle(false) }
   }
 
-  const handleAddTag = (tag: string): void => {
+  const handleAddTag = async (tag: string): Promise<void> => {
     const t = tag.trim()
-    if (t && !editTags.includes(t)) setEditTags([...editTags, t])
+    if (!t || task.tags.includes(t)) { setNewTag(''); return }
+    await updateTask(projectId, task.id, { tags: [...task.tags, t] })
     setNewTag('')
   }
 
-  const genreObj = genres.find((g) => g.name === task.genre)
-  const badgeStyle = genreObj ? { backgroundColor: genreObj.color, color: '#fff' } : {}
+  const handleRemoveTag = async (tag: string): Promise<void> => {
+    await updateTask(projectId, task.id, { tags: task.tags.filter((t) => t !== tag) })
+  }
 
-  if (editing) {
-    return (
-      <div className="task-info-header task-info-header--editing">
-        <div className="task-info-edit-row">
-          <input
-            ref={titleRef}
-            type="text"
-            className="task-info-title-input"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="タスク名"
-          />
-          <GenrePicker
-            value={editGenre || null}
-            genres={genres}
-            onChange={(v) => setEditGenre(v ?? '')}
-            onAddGenre={addGenre}
-          />
-        </div>
+  return (
+    <Stack gap="sm" mb="md">
+      {/* Title */}
+      {editingTitle ? (
+        <TextInput
+          ref={titleRef}
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          onKeyDown={handleTitleKeyDown}
+          onBlur={saveTitle}
+          size="md"
+          fw={600}
+        />
+      ) : (
+        <Text
+          size="lg"
+          fw={600}
+          onClick={() => setEditingTitle(true)}
+          style={{ cursor: 'text' }}
+        >
+          {task.title}
+        </Text>
+      )}
 
-        <div className="task-info-tags-row">
-          {editTags.map((tag) => (
-            <span key={tag} className="tag">
+      {/* Genre */}
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>ジャンル</Text>
+        <GenrePicker
+          value={task.genre ?? null}
+          genres={genres}
+          onChange={(v) => updateTask(projectId, task.id, { genre: v ?? null })}
+          onAddGenre={addGenre}
+        />
+      </Group>
+
+      {/* Tags */}
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>タグ</Text>
+        <Group gap={4}>
+          {task.tags.map((tag) => (
+            <Badge
+              key={tag}
+              size="sm"
+              variant="light"
+              rightSection={
+                <ActionIcon
+                  size={10}
+                  variant="transparent"
+                  onClick={() => handleRemoveTag(tag)}
+                  aria-label={`${tag}を削除`}
+                >
+                  <IconX size={8} stroke={2} />
+                </ActionIcon>
+              }
+            >
               {tag}
-              <button onClick={() => setEditTags(editTags.filter((t) => t !== tag))}>×</button>
-            </span>
+            </Badge>
           ))}
-          <input
-            type="text"
+          <TextInput
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(newTag) } }}
-            placeholder="タグ追加"
-            className="task-info-tag-input"
+            placeholder="+ タグ追加"
+            size="xs"
+            variant="unstyled"
+            w={100}
           />
-        </div>
+        </Group>
+      </Group>
 
-        <div className="task-info-dates-row">
-          <label className="task-edit-date-label">
-            発生日
-            <input type="date" value={editOccurredAt} onChange={(e) => setEditOccurredAt(e.target.value)} />
-          </label>
-          <label className="task-edit-date-label">
-            期限日
-            <input type="date" value={editDueAt} onChange={(e) => setEditDueAt(e.target.value)} />
-          </label>
-        </div>
+      {/* Occurred date */}
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>発生日</Text>
+        <input
+          type="date"
+          value={task.occurredAt ?? ''}
+          onChange={(e) => updateTask(projectId, task.id, { occurredAt: e.target.value || null })}
+          className="task-info-date-input"
+        />
+      </Group>
 
-        <div className="task-info-edit-actions">
-          <button className="btn-confirm" onClick={handleSave}>確定</button>
-          <button className="btn-cancel" onClick={() => setEditing(false)}>キャンセル</button>
-        </div>
-      </div>
-    )
-  }
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const dueInfo = task.dueAt
-    ? (() => {
-        const due = new Date(task.dueAt)
-        due.setHours(0, 0, 0, 0)
-        const days = Math.round((due.getTime() - today.getTime()) / 86400000)
-        return { days, overdue: days < 0 }
-      })()
-    : null
-
-  return (
-    <div className="task-info-header">
-      <div className="task-info-top">
-        <button className="task-info-title" onClick={() => setEditing(true)}>
-          {task.title}
-        </button>
-        {task.genre && (
-          <span className="task-genre" style={badgeStyle}>{task.genre}</span>
-        )}
-        {dueInfo && (
-          <span className={`task-date${dueInfo.overdue ? ' task-date--overdue' : ''}`}>
-            期限: {dueInfo.days} Day
-          </span>
-        )}
-      </div>
-
-      {task.tags.length > 0 && (
-        <div className="task-info-tags">
-          {task.tags.map((tag) => (
-            <span key={tag} className="tag">{tag}</span>
-          ))}
-        </div>
-      )}
-    </div>
+      {/* Due date */}
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>期限日</Text>
+        <input
+          type="date"
+          value={task.dueAt ?? ''}
+          onChange={(e) => updateTask(projectId, task.id, { dueAt: e.target.value || null })}
+          className="task-info-date-input"
+        />
+      </Group>
+    </Stack>
   )
 }
 
@@ -168,18 +158,9 @@ type Props = {
   onNavigateBack: () => void
 }
 
-type Tab = 'detail' | 'kanban' | 'issues'
-
 export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): JSX.Element {
-  const { projects, tasksByProject, listIssues } = useData()
-  const [activeTab, setActiveTab] = useState<Tab>('detail')
-  const [openIssueCount, setOpenIssueCount] = useState(0)
-
-  useEffect(() => {
-    listIssues(projectId, taskId).then((issues) => {
-      setOpenIssueCount(issues.filter((i) => i.status === 'open').length)
-    })
-  }, [projectId, taskId])
+  const { projects, tasksByProject } = useData()
+  const [activeTab, setActiveTab] = useState<string>('detail')
 
   const project = projects.find((p) => p.id === projectId)
   const allTasks = tasksByProject[projectId] ?? []
@@ -187,68 +168,45 @@ export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): 
 
   if (!task) {
     return (
-      <div className="repo-view">
-        <p>タスクが見つかりません</p>
-        <button onClick={onNavigateBack}>戻る</button>
-      </div>
+      <Box p="md">
+        <Text c="dimmed" size="sm">タスクが見つかりません</Text>
+        <Button variant="subtle" size="xs" mt="xs" onClick={onNavigateBack}>戻る</Button>
+      </Box>
     )
   }
 
   return (
-    <div className="repo-view">
+    <Box style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Breadcrumb header */}
-      <header className="repo-header">
-        <button className="repo-back-btn" onClick={onNavigateBack}>← 戻る</button>
-        <div className="repo-breadcrumb">
-          <span className="repo-project-name">{project?.name ?? projectId}</span>
-          <span className="repo-slash"> / </span>
-          <span className="repo-task-name">{task.title}</span>
-        </div>
-      </header>
+      <Box px="md" pt="md" pb="xs" style={{ borderBottom: '1px solid var(--mantine-color-dark-5)' }}>
+        <Group gap="xs" align="center">
+          <Button variant="subtle" size="xs" onClick={onNavigateBack} px={4} leftSection={<IconArrowLeft size={14} stroke={1.5} />}>戻る</Button>
+          <Breadcrumbs separator="/" fz="xs" c="dimmed">
+            <Text size="xs" c="dimmed">{project?.name ?? projectId}</Text>
+            <Text size="xs">{task.title}</Text>
+          </Breadcrumbs>
+        </Group>
+      </Box>
 
-      {/* Tab bar */}
-      <div className="repo-tabs">
-        <button
-          className={`repo-tab ${activeTab === 'detail' ? 'repo-tab--active' : ''}`}
-          onClick={() => setActiveTab('detail')}
-        >
-          Detail
-        </button>
-        <button
-          className={`repo-tab ${activeTab === 'kanban' ? 'repo-tab--active' : ''}`}
-          onClick={() => setActiveTab('kanban')}
-        >
-          Kanban
-        </button>
-        <button
-          className={`repo-tab ${activeTab === 'issues' ? 'repo-tab--active' : ''}`}
-          onClick={() => setActiveTab('issues')}
-        >
-          Issues
-          {openIssueCount > 0 && (
-            <span className="repo-tab-count">{openIssueCount}</span>
-          )}
-        </button>
-      </div>
+      <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? 'detail')} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <Box px="md">
+          <Tabs.List>
+            <Tabs.Tab value="detail">Detail</Tabs.Tab>
+            <Tabs.Tab value="kanban">Kanban</Tabs.Tab>
+          </Tabs.List>
+        </Box>
 
-      <div className="repo-tab-content">
-        {activeTab === 'detail' && (
-          <div className="repo-tasks-panel">
+        <Tabs.Panel value="detail" style={{ flex: 1, overflowY: 'auto' }}>
+          <Box p="md">
             <TaskInfoHeader task={task} projectId={projectId} />
             <MarkdownTab task={task} projectId={projectId} />
-          </div>
-        )}
-        {activeTab === 'kanban' && (
+          </Box>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="kanban" style={{ flex: 1, overflow: 'hidden' }}>
           <KanbanView projectId={projectId} parentTaskId={taskId} />
-        )}
-        {activeTab === 'issues' && (
-          <IssuesTab
-            projectId={projectId}
-            taskId={taskId}
-            onOpenCountChange={setOpenIssueCount}
-          />
-        )}
-      </div>
-    </div>
+        </Tabs.Panel>
+      </Tabs>
+    </Box>
   )
 }
