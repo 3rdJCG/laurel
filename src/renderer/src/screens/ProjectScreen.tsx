@@ -29,7 +29,6 @@ function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] 
 export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Element {
   const { projects, tasksByProject, createTask, updateTask, saveProjectData } = useData()
   const [activeTab, setActiveTab] = useState<ProjectTab>('tasks')
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem(`laurel:expand:${projectId}`)
     return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>()
@@ -249,9 +248,6 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
                   task={task}
                   depth={1}
                   allTasks={filteredTasks}
-                  editingTaskId={editingTaskId}
-                  onEditStart={(id) => setEditingTaskId(id)}
-                  onEditEnd={() => setEditingTaskId(null)}
                   onSaveError={(msg) => setSaveError(msg)}
                   expandedIds={expandedIds}
                   onToggleExpand={handleToggleExpand}

@@ -3,7 +3,6 @@ import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useData } from '../context/DataContext'
-import { GenrePicker } from './GenrePicker'
 import type { Task, TaskStatus } from '../types'
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -19,9 +18,6 @@ type Props = {
   task: Task
   depth: number
   allTasks: Task[]
-  editingTaskId: string | null
-  onEditStart: (taskId: string) => void
-  onEditEnd: () => void
   onSaveError?: (message: string) => void
   expandedIds: Set<string>
   onToggleExpand: (taskId: string) => void
@@ -29,7 +25,7 @@ type Props = {
 }
 
 
-export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, onEditEnd, onSaveError, expandedIds, onToggleExpand, onNavigate }: Props): JSX.Element {
+export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onToggleExpand, onNavigate }: Props): JSX.Element {
   const { updateTask, deleteTask, createTask, genres, addGenre } = useData()
   const isRoot = task.parentId === null
 
@@ -37,43 +33,85 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
   const sortableStyle = { transform: CSS.Transform.toString(transform), transition }
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showGenreDropdown, setShowGenreDropdown] = useState(false)
+  const [newGenreName, setNewGenreName] = useState('')
+  const [showAddGenreForm, setShowAddGenreForm] = useState(false)
+  const genreSlotRef = useRef<HTMLDivElement>(null)
   const [showSubtaskForm, setShowSubtaskForm] = useState(false)
   const [subtaskTitle, setSubtaskTitle] = useState('')
 
-  // Edit state
-  const [editTitle, setEditTitle] = useState(task.title)
-  const [editGenre, setEditGenre] = useState(task.genre ?? '')
-  const [editTags, setEditTags] = useState<string[]>(task.tags)
-  const [editOccurredAt, setEditOccurredAt] = useState(task.occurredAt ?? '')
-  const [editDueAt, setEditDueAt] = useState(task.dueAt ?? '')
+  // Inline title edit
+  const [showTitleInput, setShowTitleInput] = useState(false)
+  const [inlineTitleVal, setInlineTitleVal] = useState(task.title)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  // Inline tag editor
+  const [showTagInput, setShowTagInput] = useState(false)
   const [newTag, setNewTag] = useState('')
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
-  const editTitleRef = useRef<HTMLInputElement>(null)
+  const tagInputRef = useRef<HTMLInputElement>(null)
+
+  // Inline occurredAt edit
+  const [showOccurredAtInput, setShowOccurredAtInput] = useState(false)
+  const [inlineOccurredAt, setInlineOccurredAt] = useState(task.occurredAt ?? '')
+  const occurredAtInputRef = useRef<HTMLInputElement>(null)
+
+  // Inline dueAt edit
+  const [showDueDateInput, setShowDueDateInput] = useState(false)
+  const [inlineDueAt, setInlineDueAt] = useState(task.dueAt ?? '')
+  const dueDateInputRef = useRef<HTMLInputElement>(null)
+
   const subtaskRef = useRef<HTMLInputElement>(null)
 
-  // Collect available tags from allTasks, excluding already-added ones
   const tagSuggestions = useMemo(() => {
     const all = new Set<string>()
     allTasks.forEach((t) => t.tags.forEach((tag) => all.add(tag)))
-    return [...all].sort().filter((tag) => !editTags.includes(tag) && tag.includes(newTag))
-  }, [allTasks, editTags, newTag])
-
-  const isEditing = editingTaskId === task.id
+    return [...all].sort().filter((tag) => !task.tags.includes(tag) && tag.includes(newTag))
+  }, [allTasks, task.tags, newTag])
 
   useEffect(() => {
-    if (isEditing) {
-      setEditTitle(task.title)
-      setEditGenre(task.genre ?? '')
-      setEditTags(task.tags)
-      setEditOccurredAt(task.occurredAt ?? '')
-      setEditDueAt(task.dueAt ?? '')
-      editTitleRef.current?.focus()
+    if (showTitleInput) {
+      setInlineTitleVal(task.title)
+      titleInputRef.current?.focus()
     }
-  }, [isEditing, task])
+  }, [showTitleInput, task.title])
+
+  useEffect(() => {
+    if (showTagInput) tagInputRef.current?.focus()
+  }, [showTagInput])
+
+  useEffect(() => {
+    if (showOccurredAtInput) occurredAtInputRef.current?.focus()
+  }, [showOccurredAtInput])
+
+  useEffect(() => {
+    if (showDueDateInput) dueDateInputRef.current?.focus()
+  }, [showDueDateInput])
 
   useEffect(() => {
     if (showSubtaskForm) subtaskRef.current?.focus()
   }, [showSubtaskForm])
+
+  useEffect(() => {
+    setInlineDueAt(task.dueAt ?? '')
+  }, [task.dueAt])
+
+  useEffect(() => {
+    setInlineOccurredAt(task.occurredAt ?? '')
+  }, [task.occurredAt])
+
+  useEffect(() => {
+    if (!showGenreDropdown) return
+    const handle = (e: MouseEvent): void => {
+      if (genreSlotRef.current && !genreSlotRef.current.contains(e.target as Node)) {
+        setShowGenreDropdown(false)
+        setShowAddGenreForm(false)
+        setNewGenreName('')
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [showGenreDropdown])
 
   const childTasks = allTasks
     .filter((t) => t.parentId === task.id)
@@ -87,6 +125,24 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
     return count(task.id)
   })()
 
+  const handleGenreSelect = async (genre: string | null): Promise<void> => {
+    setShowGenreDropdown(false)
+    setShowAddGenreForm(false)
+    setNewGenreName('')
+    try {
+      await updateTask(task.projectId, task.id, { genre })
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
+  }
+
+  const handleAddGenreSubmit = async (): Promise<void> => {
+    const name = newGenreName.trim()
+    if (!name) return
+    await addGenre(name)
+    await handleGenreSelect(name)
+  }
+
   const handleStatusChange = async (status: TaskStatus): Promise<void> => {
     setShowStatusDropdown(false)
     try {
@@ -96,35 +152,55 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
     }
   }
 
-  const handleEditConfirm = async (): Promise<void> => {
-    const title = editTitle.trim()
-    if (!title) return
+  const handleTitleSave = async (): Promise<void> => {
+    const title = inlineTitleVal.trim()
+    setShowTitleInput(false)
+    if (!title || title === task.title) return
     try {
-      const changes: Parameters<typeof updateTask>[2] = {
-        title,
-        tags: editTags,
-        occurredAt: editOccurredAt || null,
-        dueAt: editDueAt || null
-      }
-      if (isRoot) changes.genre = editGenre.trim() || null
-      await updateTask(task.projectId, task.id, changes)
+      await updateTask(task.projectId, task.id, { title })
     } catch (err) {
       onSaveError?.(String(err))
     }
-    onEditEnd()
   }
 
-  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter') handleEditConfirm()
-    if (e.key === 'Escape') onEditEnd()
-  }
-
-  const handleAddTag = (): void => {
-    const tag = newTag.trim()
-    if (tag && !editTags.includes(tag)) {
-      setEditTags([...editTags, tag])
+  const handleRemoveTag = async (tag: string): Promise<void> => {
+    try {
+      await updateTask(task.projectId, task.id, { tags: task.tags.filter((t) => t !== tag) })
+    } catch (err) {
+      onSaveError?.(String(err))
     }
+  }
+
+  const handleAddTagInline = async (tagToAdd?: string): Promise<void> => {
+    const tag = (tagToAdd ?? newTag).trim()
     setNewTag('')
+    if (!tagToAdd) setShowTagInput(false)
+    if (!tag || task.tags.includes(tag)) return
+    try {
+      await updateTask(task.projectId, task.id, { tags: [...task.tags, tag] })
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
+  }
+
+  const handleOccurredAtChange = async (value: string): Promise<void> => {
+    setShowOccurredAtInput(false)
+    if (value === (task.occurredAt ?? '')) return
+    try {
+      await updateTask(task.projectId, task.id, { occurredAt: value || null })
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
+  }
+
+  const handleDueDateChange = async (value: string): Promise<void> => {
+    setShowDueDateInput(false)
+    if (value === (task.dueAt ?? '')) return
+    try {
+      await updateTask(task.projectId, task.id, { dueAt: value || null })
+    } catch (err) {
+      onSaveError?.(String(err))
+    }
   }
 
   const handleDeleteConfirm = async (): Promise<void> => {
@@ -179,161 +255,261 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
 
   return (
     <div ref={setNodeRef} style={sortableStyle} className={`task-item task-item--depth-${depth}`}>
-      {isEditing ? (
-        <div className="task-edit-form">
-          <input
-            ref={editTitleRef}
-            type="text"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            onKeyDown={handleEditKeyDown}
-            placeholder="タスク名"
-          />
-          <div className="task-edit-row">
-            {isRoot && (
-              <GenrePicker
-                value={editGenre || null}
-                genres={genres}
-                onChange={(v) => setEditGenre(v ?? '')}
-                onAddGenre={addGenre}
-              />
-            )}
-            <div className="tag-editor" style={{ flex: 1 }}>
-              {editTags.map((tag) => (
-                <span key={tag} className="tag">
-                  {tag}
-                  <button onClick={() => setEditTags(editTags.filter((t) => t !== tag))}>×</button>
-                </span>
-              ))}
-              <div className="tag-input-wrapper">
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={(e) => { setNewTag(e.target.value); setShowTagSuggestions(true) }}
-                  onFocus={() => setShowTagSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag() } if (e.key === 'Escape') setShowTagSuggestions(false) }}
-                  placeholder="タグ追加"
-                />
-                {showTagSuggestions && tagSuggestions.length > 0 && (
-                  <ul className="tag-suggestions">
-                    {tagSuggestions.map((tag) => (
-                      <li key={tag}>
-                        <button
-                          onMouseDown={(e) => { e.preventDefault(); setEditTags([...editTags, tag]); setNewTag('') }}
-                        >
-                          {tag}
-                        </button>
-                      </li>
+      <div className="task-row">
+        {/* Drag handle */}
+        <button className="drag-handle" {...attributes} {...listeners} aria-label="ドラッグ">⠿</button>
+
+        {/* Expand/collapse toggle */}
+        {hasChildren ? (
+          <button className="expand-toggle" onClick={() => onToggleExpand(task.id)}>
+            {isExpanded ? '▼' : '▶'}
+          </button>
+        ) : (
+          <span className="expand-toggle-placeholder" />
+        )}
+
+        {/* Genre badge */}
+        <div className="task-genre-slot" ref={genreSlotRef}>
+          {isRoot && (() => {
+            const genreObj = genres.find((g) => g.name === task.genre)
+            const badgeStyle = genreObj ? { backgroundColor: genreObj.color, color: '#fff' } : {}
+            return (
+              <>
+                <button
+                  className={`task-genre${task.genre ? '' : ' task-genre--empty'}`}
+                  style={badgeStyle}
+                  onClick={() => { setShowGenreDropdown((v) => !v); setShowAddGenreForm(false) }}
+                  title="ジャンルを変更"
+                >
+                  {task.genre ?? '＋'}
+                </button>
+                {showGenreDropdown && (
+                  <div className="task-genre-dropdown">
+                    <button className="task-genre-dropdown-item" onClick={() => handleGenreSelect(null)}>
+                      <span className="task-genre-dropdown-none">なし</span>
+                    </button>
+                    {genres.map((g) => (
+                      <button
+                        key={g.name}
+                        className={`task-genre-dropdown-item${task.genre === g.name ? ' task-genre-dropdown-item--selected' : ''}`}
+                        onClick={() => handleGenreSelect(g.name)}
+                      >
+                        <span className="genre-picker-swatch" style={{ backgroundColor: g.color }} />
+                        {g.name}
+                      </button>
                     ))}
-                  </ul>
+                    <div className="genre-picker-divider" />
+                    {showAddGenreForm ? (
+                      <div className="genre-picker-add-form">
+                        <input
+                          type="text"
+                          value={newGenreName}
+                          onChange={(e) => setNewGenreName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddGenreSubmit() } }}
+                          placeholder="ジャンル名"
+                          autoFocus
+                        />
+                        <button type="button" onClick={handleAddGenreSubmit}>追加</button>
+                        <button type="button" onClick={() => { setShowAddGenreForm(false); setNewGenreName('') }}>✕</button>
+                      </div>
+                    ) : (
+                      <button className="genre-picker-add-btn" onClick={() => setShowAddGenreForm(true)}>
+                        + 新しいジャンルを追加
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
-            </div>
-            <label className="task-edit-date-label">
-              発生日
-              <input type="date" value={editOccurredAt} onChange={(e) => setEditOccurredAt(e.target.value)} />
-            </label>
-            <label className="task-edit-date-label">
-              期限日
-              <input type="date" value={editDueAt} onChange={(e) => setEditDueAt(e.target.value)} />
-            </label>
-          </div>
-          <div className="task-edit-actions">
-            <button className="btn-confirm" onClick={handleEditConfirm}>確定</button>
-            <button className="btn-cancel" onClick={onEditEnd}>キャンセル</button>
-          </div>
+              </>
+            )
+          })()}
         </div>
-      ) : (
-        <div className="task-row">
-          {/* Drag handle */}
-          <button className="drag-handle" {...attributes} {...listeners} aria-label="ドラッグ">⠿</button>
 
-          {/* Expand/collapse toggle */}
-          {hasChildren ? (
-            <button className="expand-toggle" onClick={() => onToggleExpand(task.id)}>
-              {isExpanded ? '▼' : '▶'}
-            </button>
-          ) : (
-            <span className="expand-toggle-placeholder" />
-          )}
-
-          <div className="task-genre-slot">
-            {isRoot && task.genre && (() => {
-              const genreObj = genres.find((g) => g.name === task.genre)
-              const badgeStyle = genreObj ? { backgroundColor: genreObj.color, color: '#fff' } : {}
-              return <span className="task-genre" style={badgeStyle}>{task.genre}</span>
-            })()}
-          </div>
-
-          {onNavigate ? (
+        {/* Title — click pencil icon to edit inline */}
+        <div className="task-title-wrapper">
+          {showTitleInput ? (
+            <input
+              ref={titleInputRef}
+              type="text"
+              className="task-title-input"
+              value={inlineTitleVal}
+              onChange={(e) => setInlineTitleVal(e.target.value)}
+              onBlur={handleTitleSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleTitleSave()
+                if (e.key === 'Escape') { setInlineTitleVal(task.title); setShowTitleInput(false) }
+              }}
+            />
+          ) : onNavigate ? (
             <button className="task-title task-title--link" onClick={() => onNavigate(task.id)}>
               {task.title}
             </button>
           ) : (
             <span className="task-title">{task.title}</span>
           )}
-
-          {/* Status badge */}
-          <div className="status-wrapper">
+          {!showTitleInput && (
             <button
-              className={`status-badge status-badge--${task.status}`}
-              onClick={() => setShowStatusDropdown((v) => !v)}
-            >
-              {STATUS_LABELS[task.status]}
-            </button>
-            {showStatusDropdown && (
-              <div className="status-dropdown">
-                {ALL_STATUSES.map((s) => (
-                  <button
-                    key={s}
-                    className={`status-option status-option--${s} ${task.status === s ? 'status-option--selected' : ''}`}
-                    onClick={() => handleStatusChange(s)}
-                  >
-                    {STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+              className="task-title-edit-btn"
+              onClick={(e) => { e.stopPropagation(); setShowTitleInput(true) }}
+              title="タイトルを編集"
+            >✏</button>
+          )}
+        </div>
 
-          {/* Due date - always visible, shown as remaining days */}
-          <span className="task-due-date">
-            {(task.dueAt ?? null) && (() => {
-              const today = new Date(); today.setHours(0, 0, 0, 0)
-              const due = new Date(task.dueAt!); due.setHours(0, 0, 0, 0)
-              const days = Math.round((due.getTime() - today.getTime()) / 86400000)
-              const isOverdue = days < 0
-              return <span className={`task-date${isOverdue ? ' task-date--overdue' : ''}`}>{days} Day</span>
-            })()}
-          </span>
-
-          {/* Tags */}
-          <div className="task-tags">
-            {task.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
-          </div>
-
-          <div className="task-actions">
-            <button onClick={() => onEditStart(task.id)}>編集</button>
-            {depth === 0 && (
-              <button onClick={() => setShowSubtaskForm(true)}>+ サブタスク</button>
-            )}
-            <button onClick={() => setShowDeleteConfirm(true)}>削除</button>
-          </div>
-
-          {showDeleteConfirm && (
-            <div className="delete-confirm">
-              <span>
-                {descendantCount > 0
-                  ? `このタスクと子タスク ${descendantCount} 件を削除しますか？`
-                  : 'このタスクを削除しますか？'}
-              </span>
-              <button onClick={handleDeleteConfirm}>削除</button>
-              <button onClick={() => setShowDeleteConfirm(false)}>キャンセル</button>
+        {/* Status badge */}
+        <div className="status-wrapper">
+          <button
+            className={`status-badge status-badge--${task.status}`}
+            onClick={() => setShowStatusDropdown((v) => !v)}
+          >
+            {STATUS_LABELS[task.status]}
+          </button>
+          {showStatusDropdown && (
+            <div className="status-dropdown">
+              {ALL_STATUSES.map((s) => (
+                <button
+                  key={s}
+                  className={`status-option status-option--${s} ${task.status === s ? 'status-option--selected' : ''}`}
+                  onClick={() => handleStatusChange(s)}
+                >
+                  {STATUS_LABELS[s]}
+                </button>
+              ))}
             </div>
           )}
         </div>
-      )}
+
+        {/* Due date — click to edit inline */}
+        <span className="task-due-date">
+          {showDueDateInput ? (
+            <input
+              ref={dueDateInputRef}
+              type="date"
+              value={inlineDueAt}
+              className="task-due-date-input"
+              onChange={(e) => setInlineDueAt(e.target.value)}
+              onBlur={(e) => handleDueDateChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleDueDateChange(inlineDueAt)
+                if (e.key === 'Escape') setShowDueDateInput(false)
+              }}
+            />
+          ) : task.dueAt ? (() => {
+            const today = new Date(); today.setHours(0, 0, 0, 0)
+            const due = new Date(task.dueAt!); due.setHours(0, 0, 0, 0)
+            const days = Math.round((due.getTime() - today.getTime()) / 86400000)
+            const isOverdue = days < 0
+            return (
+              <button
+                className={`task-date${isOverdue ? ' task-date--overdue' : ''}`}
+                onClick={() => setShowDueDateInput(true)}
+                title={task.dueAt!}
+              >
+                {days} days
+              </button>
+            )
+          })() : (
+            <button className="task-date-add" onClick={() => setShowDueDateInput(true)}>
+              + 期限
+            </button>
+          )}
+        </span>
+
+        {/* Occurred at — click to edit inline */}
+        <span className="task-occurred-at">
+          {showOccurredAtInput ? (
+            <input
+              ref={occurredAtInputRef}
+              type="date"
+              value={inlineOccurredAt}
+              className="task-due-date-input"
+              onChange={(e) => setInlineOccurredAt(e.target.value)}
+              onBlur={(e) => handleOccurredAtChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleOccurredAtChange(inlineOccurredAt)
+                if (e.key === 'Escape') setShowOccurredAtInput(false)
+              }}
+            />
+          ) : task.occurredAt ? (() => {
+            const today = new Date(); today.setHours(0, 0, 0, 0)
+            const occ = new Date(task.occurredAt!); occ.setHours(0, 0, 0, 0)
+            const days = Math.round((today.getTime() - occ.getTime()) / 86400000)
+            return (
+              <button
+                className="task-date"
+                onClick={() => setShowOccurredAtInput(true)}
+                title={task.occurredAt!}
+              >
+                {days}d前
+              </button>
+            )
+          })() : (
+            <button className="task-date-add task-date-add--ghost" onClick={() => setShowOccurredAtInput(true)}>
+              + 発生日
+            </button>
+          )}
+        </span>
+
+        {/* Tags — inline editable */}
+        <div className="task-tags">
+          {task.tags.map((tag) => (
+            <span key={tag} className="tag">
+              {tag}
+              <button className="tag-remove-btn" onClick={() => handleRemoveTag(tag)} title="削除">×</button>
+            </span>
+          ))}
+          {showTagInput ? (
+            <div className="tag-input-wrapper">
+              <input
+                ref={tagInputRef}
+                type="text"
+                className="task-tag-input"
+                value={newTag}
+                onChange={(e) => { setNewTag(e.target.value); setShowTagSuggestions(true) }}
+                onFocus={() => setShowTagSuggestions(true)}
+                onBlur={() => setTimeout(() => { setShowTagSuggestions(false); setShowTagInput(false); setNewTag('') }, 150)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); handleAddTagInline() }
+                  if (e.key === 'Escape') { setShowTagInput(false); setNewTag('') }
+                }}
+                placeholder="タグ"
+              />
+              {showTagSuggestions && tagSuggestions.length > 0 && (
+                <ul className="tag-suggestions">
+                  {tagSuggestions.map((tag) => (
+                    <li key={tag}>
+                      <button onMouseDown={(e) => { e.preventDefault(); handleAddTagInline(tag) }}>
+                        {tag}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <button className="task-tag-add-btn" onClick={() => setShowTagInput(true)} title="タグを追加">+</button>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="task-actions">
+          {depth === 0 && (
+            <button onClick={() => setShowSubtaskForm(true)}>+ サブタスク</button>
+          )}
+          <button onClick={() => setShowDeleteConfirm(true)}>削除</button>
+        </div>
+
+        {showDeleteConfirm && (
+          <div className="delete-confirm">
+            <span>
+              {descendantCount > 0
+                ? `このタスクと子タスク ${descendantCount} 件を削除しますか？`
+                : 'このタスクを削除しますか？'}
+            </span>
+            <button onClick={handleDeleteConfirm}>削除</button>
+            <button onClick={() => setShowDeleteConfirm(false)}>キャンセル</button>
+          </div>
+        )}
+      </div>
 
       {showSubtaskForm && (
         <div className="subtask-form" style={{ marginLeft: depth * 12 + 12 }}>
@@ -360,9 +536,6 @@ export function TaskItem({ task, depth, allTasks, editingTaskId, onEditStart, on
                 task={child}
                 depth={depth + 1}
                 allTasks={allTasks}
-                editingTaskId={editingTaskId}
-                onEditStart={onEditStart}
-                onEditEnd={onEditEnd}
                 onSaveError={onSaveError}
                 expandedIds={expandedIds}
                 onToggleExpand={onToggleExpand}
