@@ -3,8 +3,11 @@ import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useData } from '../context/DataContext'
 import { TaskItem } from '../components/TaskItem'
+import { IssuesTab } from '../components/IssuesTab'
 import { ErrorBanner } from '../components/ErrorBanner'
 import type { Task } from '../types'
+
+type ProjectTab = 'tasks' | 'gantt' | 'issues'
 
 type Props = {
   projectId: string
@@ -25,6 +28,7 @@ function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] 
 
 export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Element {
   const { projects, tasksByProject, createTask, updateTask, saveProjectData } = useData()
+  const [activeTab, setActiveTab] = useState<ProjectTab>('tasks')
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem(`laurel:expand:${projectId}`)
@@ -149,6 +153,44 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
         <h1>{project.name}</h1>
       </header>
 
+      <div className="repo-tabs">
+        <button
+          className={`repo-tab ${activeTab === 'tasks' ? 'repo-tab--active' : ''}`}
+          onClick={() => setActiveTab('tasks')}
+        >
+          Tasks
+        </button>
+        <button
+          className={`repo-tab ${activeTab === 'gantt' ? 'repo-tab--active' : ''}`}
+          onClick={() => setActiveTab('gantt')}
+        >
+          Gantt
+        </button>
+        <button
+          className={`repo-tab ${activeTab === 'issues' ? 'repo-tab--active' : ''}`}
+          onClick={() => setActiveTab('issues')}
+        >
+          Issue
+        </button>
+      </div>
+
+      {activeTab === 'issues' && (
+        <div className="repo-tab-content">
+          <IssuesTab projectId={projectId} />
+        </div>
+      )}
+
+      {activeTab === 'gantt' && (
+        <div className="repo-tab-content">
+          <div style={{ padding: '32px', color: '#8b949e', textAlign: 'center' }}>
+            Gantt chart is coming soon.
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'tasks' && (
+        <>
+
       {saveError && (
         <ErrorBanner
           level="critical"
@@ -239,6 +281,8 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
           </button>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }

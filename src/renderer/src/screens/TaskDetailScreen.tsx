@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { useData } from '../context/DataContext'
 import { GenrePicker } from '../components/GenrePicker'
 import { KanbanView } from '../components/KanbanView'
-import { IssuesTab } from '../components/IssuesTab'
 import { MarkdownTab } from '../components/MarkdownTab'
 import type { Task } from '../types'
 
@@ -168,18 +167,11 @@ type Props = {
   onNavigateBack: () => void
 }
 
-type Tab = 'detail' | 'kanban' | 'issues'
+type Tab = 'detail' | 'kanban'
 
 export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): JSX.Element {
-  const { projects, tasksByProject, listIssues } = useData()
+  const { projects, tasksByProject } = useData()
   const [activeTab, setActiveTab] = useState<Tab>('detail')
-  const [openIssueCount, setOpenIssueCount] = useState(0)
-
-  useEffect(() => {
-    listIssues(projectId, taskId).then((issues) => {
-      setOpenIssueCount(issues.filter((i) => i.status === 'open').length)
-    })
-  }, [projectId, taskId])
 
   const project = projects.find((p) => p.id === projectId)
   const allTasks = tasksByProject[projectId] ?? []
@@ -220,15 +212,6 @@ export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): 
         >
           Kanban
         </button>
-        <button
-          className={`repo-tab ${activeTab === 'issues' ? 'repo-tab--active' : ''}`}
-          onClick={() => setActiveTab('issues')}
-        >
-          Issues
-          {openIssueCount > 0 && (
-            <span className="repo-tab-count">{openIssueCount}</span>
-          )}
-        </button>
       </div>
 
       <div className="repo-tab-content">
@@ -240,13 +223,6 @@ export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): 
         )}
         {activeTab === 'kanban' && (
           <KanbanView projectId={projectId} parentTaskId={taskId} />
-        )}
-        {activeTab === 'issues' && (
-          <IssuesTab
-            projectId={projectId}
-            taskId={taskId}
-            onOpenCountChange={setOpenIssueCount}
-          />
         )}
       </div>
     </div>
