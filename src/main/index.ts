@@ -16,6 +16,7 @@ import {
 } from './storage/projectStore'
 import { startWatcher, stopWatcher } from './storage/watcher'
 import { getProcessedMailIds, addProcessedMailId } from './storage/forgeStore'
+import { getProjectOrder, saveProjectOrder } from './storage/projectOrderStore'
 import * as fs from 'fs'
 import * as path from 'path'
 import { ulid } from 'ulid'
@@ -357,6 +358,13 @@ function setupIpc(): void {
 
   ipcMain.handle('shell:open-external', (_event, url: string) => {
     shell.openExternal(url)
+  })
+
+  ipcMain.handle('projects:get-order', () => getProjectOrder())
+
+  ipcMain.handle('projects:set-order', (_event, { ids }: { ids: string[] }) => {
+    saveProjectOrder(ids)
+    return { ok: true }
   })
 
   ipcMain.handle(

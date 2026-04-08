@@ -3,21 +3,26 @@ import {
   Stack, Group, Text, Title, TextInput, Button, ActionIcon,
   Card, Box, Loader, Center
 } from '@mantine/core'
-import { IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconPencil, IconTrash, IconGripVertical } from '@tabler/icons-react'
 import {
-  DndContext, DragOverlay, useDroppable,
-  pointerWithin, type DragEndEvent,
+  DndContext, DragOverlay,
+  pointerWithin, type DragEndEvent, type DragStartEvent,
   PointerSensor, useSensor, useSensors
 } from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { notifications } from '@mantine/notifications'
 import { useData } from '../context/DataContext'
 import { ErrorBanner } from '../components/ErrorBanner'
 import { ForgeTodayArea, MailCardContent, type ForgeMail } from '../components/ForgeTodayArea'
 import type { Project } from '../types'
 
-// ── Droppable project card ────────────────────────────────────────────────────
+// ── Sortable + droppable project card ─────────────────────────────────────────
 
-type DroppableProjectCardProps = {
+type SortableProjectCardProps = {
   project: Project
   taskCount: number
   isDraggingMail: boolean
@@ -36,19 +41,25 @@ type DroppableProjectCardProps = {
   onNavigate: () => void
 }
 
-function DroppableProjectCard({
+function SortableProjectCard({
   project, taskCount, isDraggingMail,
   isEditing, isDeleting,
   editName, editRef, onEditNameChange, onEditKeyDown, onEditConfirm, onEditCancel,
   onDeleteConfirm, onDeleteCancel,
   onStartEdit, onStartDelete, onNavigate
-}: DroppableProjectCardProps): JSX.Element {
-  const { isOver, setNodeRef } = useDroppable({ id: `project-${project.id}` })
+}: SortableProjectCardProps): JSX.Element {
+  const {
+    attributes, listeners, setNodeRef,
+    transform, transition, isDragging, isOver
+  } = useSortable({ id: `project-${project.id}`, disabled: isDraggingMail })
 
   const highlight = isDraggingMail && isOver
 
   return (
-    <Box ref={setNodeRef}>
+    <Box
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+    >
       <Card
         padding="sm"
         radius="md"
@@ -85,10 +96,20 @@ function DroppableProjectCard({
           </Group>
         ) : (
           <Group justify="space-between" onClick={onNavigate}>
-            <div>
-              <Text size="sm" fw={500}>{project.name}</Text>
-              <Text size="xs" c="dimmed">{taskCount} タスク</Text>
-            </div>
+            <Group gap="xs" style={{ minWidth: 0, flex: 1 }}>
+              <ActionIcon
+                variant="subtle" size="sm" color="dimmed"
+                {...attributes} {...listeners}
+                onClick={(e) => e.stopPropagation()}
+                style={{ cursor: isDragging ? 'grabbing' : 'grab', flexShrink: 0 }}
+              >
+                <IconGripVertical size={14} stroke={1.5} />
+              </ActionIcon>
+              <div style={{ minWidth: 0 }}>
+                <Text size="sm" fw={500}>{project.name}</Text>
+                <Text size="xs" c="dimmed">{taskCount} タスク</Text>
+              </div>
+            </Group>
             <Group gap={4} onClick={(e) => e.stopPropagation()}>
               <ActionIcon variant="subtle" size="sm" onClick={onStartEdit} title="名前を編集">
                 <IconPencil size={14} stroke={1.5} />
@@ -112,7 +133,7 @@ type Props = {
 }
 
 export function HomeScreen({ onNavigateToProject, onNavigateToSettings }: Props): JSX.Element {
-  const { projects, tasksByProject, isLoading, error, loadErrors, dismissLoadErrors, createProject, updateProject, deleteProject, createTask, updateTask } = useData()
+  const { projects, tasksByProject, isLoading, error, loadErrors, dismissLoadErrors, createProject, updateProject, deleteProject, reorderProjects, createTask, updateTask } = useData()
 
   // Project UI state
   const [showAddForm, setShowAddForm] = useState(false)
@@ -223,51 +244,49 @@ export function HomeScreen({ onNavigateToProject, onNavigateToSettings }: Props)
     await loadMails()
   }, [loadMails])
 
-  const handleDragStart = (): void => {
-    setIsDraggingMail(true)
+  const handleDragStart = (event: DragStartEvent): void => {
+    if (event.active.id === 'forge-mail-card') {
+      setIsDraggingMail(true)
+    }
   }
 
   const handleDragEnd = (event: DragEndEvent): void => {
-    setIsDraggingMail(false)
-    const { over } = event
-    if (!over) return
+    const { active, over } = event
 
-    const currentMail = mailsRef.current[currentMailIndexRef.current]
-    if (!currentMail) return
-
-    const isCtrl = ctrlHeldRef.current
-    const overId = String(over.id)
-
-    const run = async (): Promise<void> => {
-      try {
-        if (overId === 'trash') {
-          await markProcessed(currentMail.id)
-          return
-        }
-        if (overId.startsWith('project-')) {
-          const projectId = overId.replace('project-', '')
-          const mail = currentMail.data.mail
-          await createTask(projectId, null, mail.subject, null, { mailData: mail })
-          notifications.show({
-            title: 'タスクを作成しました',
-            message: mail.subject,
-            color: 'blue',
-            autoClose: 3000
-          })
-          if (!isCtrl) {
+    if (isDraggingMail) {
+      setIsDraggingMail(false)
+      if (!over) return
+      const currentMail = mailsRef.current[currentMailIndexRef.current]
+      if (!currentMail) return
+      const isCtrl = ctrlHeldRef.current
+      const overId = String(over.id)
+      const run = async (): Promise<void> => {
+        try {
+          if (overId === 'trash') {
             await markProcessed(currentMail.id)
+            return
           }
+          if (overId.startsWith('project-')) {
+            const projectId = overId.replace('project-', '')
+            const mail = currentMail.data.mail
+            await createTask(projectId, null, mail.subject, null, { mailData: mail })
+            notifications.show({ title: 'タスクを作成しました', message: mail.subject, color: 'blue', autoClose: 3000 })
+            if (!isCtrl) await markProcessed(currentMail.id)
+          }
+        } catch (err) {
+          notifications.show({ title: 'エラー', message: String(err), color: 'red', autoClose: 5000 })
         }
-      } catch (err) {
-        notifications.show({
-          title: 'エラー',
-          message: String(err),
-          color: 'red',
-          autoClose: 5000
-        })
       }
+      run()
+    } else {
+      // Project sort drag
+      if (!over || active.id === over.id) return
+      const oldIndex = projects.findIndex((p) => `project-${p.id}` === active.id)
+      const newIndex = projects.findIndex((p) => `project-${p.id}` === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+      const next = arrayMove(projects, oldIndex, newIndex)
+      reorderProjects(next.map((p) => p.id))
     }
-    run()
   }
 
   const handleMailPrev = (): void => {
@@ -338,11 +357,15 @@ export function HomeScreen({ onNavigateToProject, onNavigateToSettings }: Props)
               <Text c="dimmed" size="sm">プロジェクトはまだありません</Text>
             )}
 
+            <SortableContext
+              items={projects.map((p) => `project-${p.id}`)}
+              strategy={verticalListSortingStrategy}
+            >
             <Stack gap="xs">
               {projects.map((project: Project) => {
                 const taskCount = (tasksByProject[project.id] ?? []).length
                 return (
-                  <DroppableProjectCard
+                  <SortableProjectCard
                     key={project.id}
                     project={project}
                     taskCount={taskCount}
@@ -382,6 +405,7 @@ export function HomeScreen({ onNavigateToProject, onNavigateToSettings }: Props)
                 </Card>
               )}
             </Stack>
+            </SortableContext>
           </Box>
 
           {/* Right: Forge Today */}

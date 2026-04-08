@@ -1,19 +1,3 @@
-import { useEffect, useState } from 'react'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-  useSortable
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { NavLink, Stack, Text, Tooltip, UnstyledButton, ScrollArea, Box, Divider } from '@mantine/core'
 import {
   IconFolder,
@@ -40,118 +24,9 @@ type Props = {
   onAboutOpen: () => void
 }
 
-const ORDER_KEY = 'project-order'
-
-function loadOrder(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as string[]
-  } catch {
-    return []
-  }
-}
-
-function saveOrder(ids: string[]): void {
-  localStorage.setItem(ORDER_KEY, JSON.stringify(ids))
-}
-
-function applySavedOrder(projects: Project[], savedIds: string[]): Project[] {
-  const map = new Map(projects.map((p) => [p.id, p]))
-  const ordered: Project[] = []
-  for (const id of savedIds) {
-    if (map.has(id)) {
-      ordered.push(map.get(id)!)
-      map.delete(id)
-    }
-  }
-  for (const p of map.values()) ordered.push(p)
-  return ordered
-}
-
-// ── SortableProjectItem ────────────────────────────────────────────────────────
-
-type ItemProps = {
-  project: Project
-  active: boolean
-  collapsed: boolean
-  onNavigate: (view: View) => void
-}
-
-function SortableProjectItem({ project, active, collapsed, onNavigate }: ItemProps): JSX.Element {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: project.id
-  })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1
-  }
-
-  const folderIcon = (
-    <span
-      {...attributes}
-      {...listeners}
-      style={{ cursor: isDragging ? 'grabbing' : 'grab', display: 'flex', alignItems: 'center' }}
-    >
-      <IconFolder size={16} stroke={1.5} />
-    </span>
-  )
-
-  const navLink = (
-    <NavLink
-      label={!collapsed ? project.name : undefined}
-      leftSection={folderIcon}
-      active={active}
-      onClick={() => onNavigate({ type: 'project', projectId: project.id })}
-      title={project.name}
-      styles={{
-        root: { borderRadius: 6, justifyContent: collapsed ? 'center' : undefined },
-        ...(collapsed && { section: { margin: 0 } })
-      }}
-    />
-  )
-
-  return (
-    <div ref={setNodeRef} style={style}>
-      {collapsed ? (
-        <Tooltip label={project.name} position="right" withArrow>
-          {navLink}
-        </Tooltip>
-      ) : navLink}
-    </div>
-  )
-}
-
 // ── Sidebar ────────────────────────────────────────────────────────────────────
 
 export function Sidebar({ collapsed, onToggleCollapse, currentView, projects, onNavigate, onAboutOpen }: Props): JSX.Element {
-  const [orderedProjects, setOrderedProjects] = useState<Project[]>(() =>
-    applySavedOrder(projects, loadOrder())
-  )
-
-  useEffect(() => {
-    setOrderedProjects((prev) => {
-      const savedIds = prev.map((p) => p.id)
-      return applySavedOrder(projects, savedIds)
-    })
-  }, [projects])
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  )
-
-  const handleDragEnd = (event: DragEndEvent): void => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    setOrderedProjects((prev) => {
-      const oldIndex = prev.findIndex((p) => p.id === active.id)
-      const newIndex = prev.findIndex((p) => p.id === over.id)
-      const next = arrayMove(prev, oldIndex, newIndex)
-      saveOrder(next.map((p) => p.id))
-      return next
-    })
-  }
-
   const isActive = (view: View): boolean => {
     if (view.type === 'home' && currentView.type === 'home') return true
     if (view.type === 'settings' && currentView.type === 'settings') return true
@@ -231,28 +106,29 @@ export function Sidebar({ collapsed, onToggleCollapse, currentView, projects, on
           )}
           {collapsed && <Divider my={4} />}
 
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={orderedProjects.map((p) => p.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <Stack gap={2}>
-                {orderedProjects.map((p) => (
-                  <SortableProjectItem
-                    key={p.id}
-                    project={p}
-                    active={isActive({ type: 'project', projectId: p.id })}
-                    collapsed={collapsed}
-                    onNavigate={onNavigate}
-                  />
-                ))}
-              </Stack>
-            </SortableContext>
-          </DndContext>
+          <Stack gap={2}>
+            {projects.map((p) => {
+              const navLink = (
+                <NavLink
+                  key={p.id}
+                  label={!collapsed ? p.name : undefined}
+                  leftSection={<IconFolder size={16} stroke={1.5} />}
+                  active={isActive({ type: 'project', projectId: p.id })}
+                  onClick={() => onNavigate({ type: 'project', projectId: p.id })}
+                  title={p.name}
+                  styles={{
+                    root: { borderRadius: 6, justifyContent: collapsed ? 'center' : undefined },
+                    ...(collapsed && { section: { margin: 0 } })
+                  }}
+                />
+              )
+              return collapsed ? (
+                <Tooltip key={p.id} label={p.name} position="right" withArrow>
+                  {navLink}
+                </Tooltip>
+              ) : navLink
+            })}
+          </Stack>
         </Stack>
       </ScrollArea>
 
