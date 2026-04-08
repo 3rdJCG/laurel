@@ -49,7 +49,8 @@ export function loadAll(dataDir: string): LoadAllResult {
       parsed.tasks = (parsed.tasks ?? []).map((t, i) => ({
         ...t,
         order: t.order ?? i,
-        description: t.description ?? null
+        description: t.description ?? null,
+        mailData: t.mailData ?? null
       }))
       parsed.comments = parsed.comments ?? []
       parsed.issues = parsed.issues ?? []
@@ -69,7 +70,9 @@ export function loadOne(filePath: string): ProjectFile | null {
     if (!parsed.project || !parsed.project.id) return null
     parsed.tasks = (parsed.tasks ?? []).map((t, i) => ({
       ...t,
-      order: t.order ?? i
+      order: t.order ?? i,
+      description: t.description ?? null,
+      mailData: t.mailData ?? null
     }))
     parsed.comments = parsed.comments ?? []
     parsed.issues = parsed.issues ?? []

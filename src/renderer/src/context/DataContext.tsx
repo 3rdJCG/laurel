@@ -15,7 +15,7 @@ type DataContextValue = {
   createProject: (name: string) => Promise<void>
   updateProject: (projectId: string, changes: Partial<Project>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
-  createTask: (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null) => Promise<Task>
+  createTask: (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null, overrides?: Partial<Task>) => Promise<Task>
   updateTask: (projectId: string, taskId: string, changes: Partial<Task>) => Promise<void>
   deleteTask: (projectId: string, taskId: string) => Promise<void>
   saveProjectData: (projectId: string) => Promise<void>
@@ -193,7 +193,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
   }, [])
 
   const createTask = useCallback(
-    async (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null): Promise<Task> => {
+    async (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null, overrides?: Partial<Task>): Promise<Task> => {
       const existing = tasksByProject[projectId] ?? []
       const siblings = existing.filter((t) => t.parentId === parentId)
       const maxOrder = siblings.length > 0 ? Math.max(...siblings.map((t) => t.order)) : -1
@@ -209,7 +209,9 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         occurredAt: new Date().toISOString().slice(0, 10),
         dueAt: null,
         order: maxOrder + 1,
-        description: null
+        description: null,
+        mailData: null,
+        ...overrides
       }
       const newTasks = [...existing, task]
       setTasksByProject((prev) => ({ ...prev, [projectId]: newTasks }))
