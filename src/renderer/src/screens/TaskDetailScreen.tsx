@@ -199,7 +199,7 @@ export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): 
         <Tabs.Panel value="detail" style={{ flex: 1, overflowY: 'auto' }}>
           <Box p="md">
             <TaskInfoHeader task={task} projectId={projectId} />
-            <MarkdownTab task={task} projectId={projectId} />
+            <MarkdownTab task={task} projectId={projectId} mailData={task.mailData ?? undefined} />
           </Box>
         </Tabs.Panel>
 

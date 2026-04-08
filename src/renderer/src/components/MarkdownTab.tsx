@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { marked } from 'marked'
 import { ActionIcon, Group, Text, Box, Popover, Stack, UnstyledButton } from '@mantine/core'
 import { useData } from '../context/DataContext'
-import type { Task } from '../types'
+import { MailTab } from './MailTab'
+import type { Task, MailData } from '../types'
 
 marked.setOptions({ breaks: true, gfm: true })
 
@@ -26,10 +27,12 @@ function extractHeadings(markdown: string): Heading[] {
 type Props = {
   task: Task
   projectId: string
+  mailData?: MailData
 }
 
-export function MarkdownTab({ task, projectId }: Props): JSX.Element {
+export function MarkdownTab({ task, projectId, mailData }: Props): JSX.Element {
   const { updateTask } = useData()
+  const [activeInner, setActiveInner] = useState<'description' | 'mail'>('description')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task.description ?? '')
   const [showToc, setShowToc] = useState(false)
@@ -70,8 +73,39 @@ export function MarkdownTab({ task, projectId }: Props): JSX.Element {
         py={6}
         style={{ borderBottom: '1px solid var(--mantine-color-dark-5)', background: 'var(--mantine-color-dark-7)' }}
       >
-        <Text size="xs" c="dimmed" fw={500}>Description</Text>
-        <Group gap={4}>
+        {mailData ? (
+          <Group gap={0}>
+            <UnstyledButton
+              onClick={() => setActiveInner('description')}
+              px="sm"
+              py={4}
+              style={{
+                fontSize: 'var(--mantine-font-size-xs)',
+                fontWeight: 500,
+                color: activeInner === 'description' ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
+                borderBottom: activeInner === 'description' ? '2px solid var(--mantine-color-blue-5)' : '2px solid transparent',
+              }}
+            >
+              Description
+            </UnstyledButton>
+            <UnstyledButton
+              onClick={() => setActiveInner('mail')}
+              px="sm"
+              py={4}
+              style={{
+                fontSize: 'var(--mantine-font-size-xs)',
+                fontWeight: 500,
+                color: activeInner === 'mail' ? 'var(--mantine-color-text)' : 'var(--mantine-color-dimmed)',
+                borderBottom: activeInner === 'mail' ? '2px solid var(--mantine-color-blue-5)' : '2px solid transparent',
+              }}
+            >
+              Mail
+            </UnstyledButton>
+          </Group>
+        ) : (
+          <Text size="xs" c="dimmed" fw={500}>Description</Text>
+        )}
+        <Group gap={4} style={{ visibility: activeInner === 'mail' ? 'hidden' : undefined }}>
           {/* TOC */}
           <Popover opened={showToc} onClose={() => setShowToc(false)} position="bottom-end" withArrow shadow="md">
             <Popover.Target>
@@ -127,7 +161,10 @@ export function MarkdownTab({ task, projectId }: Props): JSX.Element {
       </Group>
 
       {/* Content */}
-      <Box className="markdown-file-content">
+      {activeInner === 'mail' && mailData && (
+        <MailTab mailData={mailData} />
+      )}
+      <Box className="markdown-file-content" style={{ display: activeInner === 'mail' ? 'none' : undefined }}>
         {editing ? (
           <Box>
             <textarea

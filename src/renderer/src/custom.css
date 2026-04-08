@@ -317,7 +317,6 @@ input[type="date"] {
 .markdown-file-box {
   border: 1px solid var(--mantine-color-dark-5);
   border-radius: 6px;
-  overflow: hidden;
 }
 
 .markdown-file-content {
