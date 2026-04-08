@@ -199,10 +199,9 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const handleTabChange = (next: string | null): void => {
     if (!next) return
     const currentIsDirty =
-      activeTab === 'storage' ? storageIsDirty :
+      activeTab === 'storage' ? (storageIsDirty || forgeIsDirty) :
       activeTab === 'user' ? userIsDirty :
-      activeTab === 'update' ? updateIsDirty :
-      activeTab === 'forge' ? forgeIsDirty : categoriesIsDirty
+      activeTab === 'update' ? updateIsDirty : categoriesIsDirty
 
     if (currentIsDirty) {
       const ok = window.confirm('このタブの変更が保存されていません。破棄して移動しますか？')
@@ -225,18 +224,18 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     if (selected) setDraftMailFolder(selected)
   }
 
-  const handleForgeSave = async (): Promise<void> => {
+  const handleDataSave = async (): Promise<void> => {
     setSaving(true); setErrorMsg(null); setSuccessMsg(null)
-    await window.api.invoke('settings:mail-folder-set', { mailFolder: draftMailFolder })
-    setSavedMailFolder(draftMailFolder); setSuccessMsg('保存しました')
-    setSaving(false)
-  }
-
-  const handleStorageSave = async (): Promise<void> => {
-    setSaving(true); setErrorMsg(null); setSuccessMsg(null)
-    const result = (await window.api.invoke('settings:set', { dataDir: draftDataDir })) as { ok: boolean; error?: { message: string } }
-    if (!result.ok) { setErrorMsg(result.error?.message ?? '保存に失敗しました'); setDraftDataDir(savedDataDir) }
-    else { setSavedDataDir(draftDataDir); setSuccessMsg('保存しました') }
+    if (storageIsDirty) {
+      const result = (await window.api.invoke('settings:set', { dataDir: draftDataDir })) as { ok: boolean; error?: { message: string } }
+      if (!result.ok) { setErrorMsg(result.error?.message ?? '保存に失敗しました'); setDraftDataDir(savedDataDir); setSaving(false); return }
+      setSavedDataDir(draftDataDir)
+    }
+    if (forgeIsDirty) {
+      await window.api.invoke('settings:mail-folder-set', { mailFolder: draftMailFolder })
+      setSavedMailFolder(draftMailFolder)
+    }
+    setSuccessMsg('保存しました')
     setSaving(false)
   }
 
@@ -307,16 +306,14 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     Object.values(tasksByProject).flat().filter((t) => t.genre === name).length
 
   const currentIsDirty =
-    activeTab === 'storage' ? storageIsDirty :
+    activeTab === 'storage' ? (storageIsDirty || forgeIsDirty) :
     activeTab === 'user' ? userIsDirty :
-    activeTab === 'update' ? updateIsDirty :
-    activeTab === 'forge' ? forgeIsDirty : categoriesIsDirty
+    activeTab === 'update' ? updateIsDirty : categoriesIsDirty
 
   const handleSave = (): void => {
-    if (activeTab === 'storage') handleStorageSave()
+    if (activeTab === 'storage') handleDataSave()
     else if (activeTab === 'user') handleUserSave()
     else if (activeTab === 'update') handleUpdateSave()
-    else if (activeTab === 'forge') handleForgeSave()
     else handleCategoriesSave()
   }
 
@@ -337,25 +334,41 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
 
       <Tabs value={activeTab} onChange={handleTabChange}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="storage">データ保存先</Tabs.Tab>
+          <Tabs.Tab value="storage">データ管理</Tabs.Tab>
           <Tabs.Tab value="user">ユーザー情報</Tabs.Tab>
           <Tabs.Tab value="categories">カテゴリ管理</Tabs.Tab>
-          <Tabs.Tab value="forge">ForgeToday</Tabs.Tab>
           <Tabs.Tab value="update">アップデート</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="storage">
-          <Stack gap="sm">
-            <Group gap="xs">
-              <TextInput
-                value={draftDataDir}
-                onChange={(e) => setDraftDataDir(e.target.value)}
-                placeholder="保存先フォルダのパス"
-                size="xs"
-                style={{ flex: 1 }}
-              />
-              <Button size="xs" variant="default" onClick={handleSelectFolder}>フォルダを選択</Button>
-            </Group>
+          <Stack gap="md">
+            <Box>
+              <Text size="xs" fw={600} mb={6}>データ保存先</Text>
+              <Group gap="xs">
+                <TextInput
+                  value={draftDataDir}
+                  onChange={(e) => setDraftDataDir(e.target.value)}
+                  placeholder="保存先フォルダのパス"
+                  size="xs"
+                  style={{ flex: 1 }}
+                />
+                <Button size="xs" variant="default" onClick={handleSelectFolder}>フォルダを選択</Button>
+              </Group>
+            </Box>
+            <Box>
+              <Text size="xs" fw={600} mb={4}>ForgeToday メール取込フォルダ</Text>
+              <Text size="xs" c="dimmed" mb={6}>OutlookからエクスポートしたメールJSONが格納されるフォルダを指定します。</Text>
+              <Group gap="xs">
+                <TextInput
+                  value={draftMailFolder}
+                  onChange={(e) => setDraftMailFolder(e.target.value)}
+                  placeholder="フォルダのパス"
+                  size="xs"
+                  style={{ flex: 1 }}
+                />
+                <Button size="xs" variant="default" onClick={handleSelectMailFolder}>フォルダを選択</Button>
+              </Group>
+            </Box>
             <Footer />
           </Stack>
         </Tabs.Panel>
@@ -414,25 +427,8 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
           </Stack>
         </Tabs.Panel>
 
-        <Tabs.Panel value="forge">
-          <Stack gap="sm">
-            <Text size="xs" fw={600}>メール取込フォルダ</Text>
-            <Text size="xs" c="dimmed">OutlookからエクスポートしたメールJSONが格納されるフォルダを指定します。</Text>
-            <Group gap="xs">
-              <TextInput
-                value={draftMailFolder}
-                onChange={(e) => setDraftMailFolder(e.target.value)}
-                placeholder="フォルダのパス"
-                size="xs"
-                style={{ flex: 1 }}
-              />
-              <Button size="xs" variant="default" onClick={handleSelectMailFolder}>フォルダを選択</Button>
-            </Group>
-            <Footer />
-          </Stack>
-        </Tabs.Panel>
 
-        <Tabs.Panel value="update">
+<Tabs.Panel value="update">
           <Stack gap="sm">
             <Box>
               <Text size="xs" fw={600} mb="xs">アップデートチャンネル</Text>
