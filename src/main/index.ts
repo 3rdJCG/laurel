@@ -15,6 +15,7 @@ import {
   type ProjectFile
 } from './storage/projectStore'
 import { startWatcher, stopWatcher } from './storage/watcher'
+import { getProcessedMailIds, addProcessedMailId } from './storage/forgeStore'
 import * as fs from 'fs'
 import * as path from 'path'
 import { ulid } from 'ulid'
@@ -317,6 +318,46 @@ function setupIpc(): void {
       return updated
     }
   )
+
+  ipcMain.handle('settings:mail-folder-set', (_event, { mailFolder }: { mailFolder: string }) => {
+    const current = getSettings()
+    saveSettings({ ...current, mailFolder })
+    return { ok: true }
+  })
+
+  ipcMain.handle('forge:load-mails', () => {
+    const { mailFolder } = getSettings()
+    if (!mailFolder) return []
+    const processedIds = getProcessedMailIds()
+    let files: string[]
+    try {
+      files = fs.readdirSync(mailFolder).filter((f) => f.endsWith('.json'))
+    } catch {
+      return []
+    }
+    const mails: Array<{ id: string; data: unknown }> = []
+    for (const file of files) {
+      const id = path.basename(file, '.json')
+      if (processedIds.includes(id)) continue
+      try {
+        const raw = fs.readFileSync(path.join(mailFolder, file), 'utf-8')
+        const data = JSON.parse(raw) as unknown
+        mails.push({ id, data })
+      } catch {
+        // skip unreadable files
+      }
+    }
+    return mails
+  })
+
+  ipcMain.handle('forge:mark-processed', (_event, { id }: { id: string }) => {
+    addProcessedMailId(id)
+    return { ok: true }
+  })
+
+  ipcMain.handle('shell:open-external', (_event, url: string) => {
+    shell.openExternal(url)
+  })
 
   ipcMain.handle(
     'issues:add-comment',
