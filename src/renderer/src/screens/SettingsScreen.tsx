@@ -23,6 +23,7 @@ type AppSettings = {
   name: string
   mailAddress: string
   updateChannel: 'latest' | 'beta'
+  mailFolder: string
 }
 
 type SortableGenreItemProps = {
@@ -130,6 +131,9 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const [savedName, setSavedName] = useState('')
   const [savedMail, setSavedMail] = useState('')
 
+  const [draftMailFolder, setDraftMailFolder] = useState('')
+  const [savedMailFolder, setSavedMailFolder] = useState('')
+
   const [draftChannel, setDraftChannel] = useState<'latest' | 'beta'>('latest')
   const [savedChannel, setSavedChannel] = useState<'latest' | 'beta'>('latest')
   const [appVersion, setAppVersion] = useState('')
@@ -158,6 +162,7 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const userIsDirty = draftName !== savedName || draftMail !== savedMail
   const categoriesIsDirty = JSON.stringify(draftGenres) !== JSON.stringify(savedGenres)
   const updateIsDirty = draftChannel !== savedChannel
+  const forgeIsDirty = draftMailFolder !== savedMailFolder
 
   useEffect(() => {
     loadSettings()
@@ -168,8 +173,8 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   }, [])
 
   useEffect(() => {
-    registerDirtyChecker(() => storageIsDirty || userIsDirty || categoriesIsDirty)
-  }, [storageIsDirty, userIsDirty, categoriesIsDirty])
+    registerDirtyChecker(() => storageIsDirty || userIsDirty || categoriesIsDirty || forgeIsDirty)
+  }, [storageIsDirty, userIsDirty, categoriesIsDirty, forgeIsDirty])
 
   useEffect(() => {
     if (!openPickerName) return
@@ -187,6 +192,7 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     setSavedMail(settings.mailAddress ?? ''); setDraftMail(settings.mailAddress ?? '')
     setSavedGenres(settings.genres ?? []); setDraftGenres(settings.genres ?? [])
     setSavedChannel(settings.updateChannel ?? 'latest'); setDraftChannel(settings.updateChannel ?? 'latest')
+    setSavedMailFolder(settings.mailFolder ?? ''); setDraftMailFolder(settings.mailFolder ?? '')
     setErrorMsg(null); setSuccessMsg(null)
   }
 
@@ -195,13 +201,15 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
     const currentIsDirty =
       activeTab === 'storage' ? storageIsDirty :
       activeTab === 'user' ? userIsDirty :
-      activeTab === 'update' ? updateIsDirty : categoriesIsDirty
+      activeTab === 'update' ? updateIsDirty :
+      activeTab === 'forge' ? forgeIsDirty : categoriesIsDirty
 
     if (currentIsDirty) {
       const ok = window.confirm('このタブの変更が保存されていません。破棄して移動しますか？')
       if (!ok) return
       setDraftDataDir(savedDataDir); setDraftName(savedName)
       setDraftMail(savedMail); setDraftGenres(savedGenres); setDraftChannel(savedChannel)
+      setDraftMailFolder(savedMailFolder)
     }
     setErrorMsg(null); setSuccessMsg(null)
     setActiveTab(next)
@@ -210,6 +218,18 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const handleSelectFolder = async (): Promise<void> => {
     const selected = (await window.api.invoke('dialog:open-folder')) as string | null
     if (selected) setDraftDataDir(selected)
+  }
+
+  const handleSelectMailFolder = async (): Promise<void> => {
+    const selected = (await window.api.invoke('dialog:open-folder')) as string | null
+    if (selected) setDraftMailFolder(selected)
+  }
+
+  const handleForgeSave = async (): Promise<void> => {
+    setSaving(true); setErrorMsg(null); setSuccessMsg(null)
+    await window.api.invoke('settings:mail-folder-set', { mailFolder: draftMailFolder })
+    setSavedMailFolder(draftMailFolder); setSuccessMsg('保存しました')
+    setSaving(false)
   }
 
   const handleStorageSave = async (): Promise<void> => {
@@ -253,6 +273,7 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const handleDiscard = (): void => {
     setDraftDataDir(savedDataDir); setDraftName(savedName)
     setDraftMail(savedMail); setDraftGenres([...savedGenres]); setDraftChannel(savedChannel)
+    setDraftMailFolder(savedMailFolder)
     setErrorMsg(null); setSuccessMsg(null)
   }
 
@@ -288,12 +309,14 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
   const currentIsDirty =
     activeTab === 'storage' ? storageIsDirty :
     activeTab === 'user' ? userIsDirty :
-    activeTab === 'update' ? updateIsDirty : categoriesIsDirty
+    activeTab === 'update' ? updateIsDirty :
+    activeTab === 'forge' ? forgeIsDirty : categoriesIsDirty
 
   const handleSave = (): void => {
     if (activeTab === 'storage') handleStorageSave()
     else if (activeTab === 'user') handleUserSave()
     else if (activeTab === 'update') handleUpdateSave()
+    else if (activeTab === 'forge') handleForgeSave()
     else handleCategoriesSave()
   }
 
@@ -317,6 +340,7 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
           <Tabs.Tab value="storage">データ保存先</Tabs.Tab>
           <Tabs.Tab value="user">ユーザー情報</Tabs.Tab>
           <Tabs.Tab value="categories">カテゴリ管理</Tabs.Tab>
+          <Tabs.Tab value="forge">ForgeToday</Tabs.Tab>
           <Tabs.Tab value="update">アップデート</Tabs.Tab>
         </Tabs.List>
 
@@ -386,6 +410,24 @@ export function SettingsScreen({ registerDirtyChecker }: Props): JSX.Element {
               <Text size="xs" fw={600} mb={4}>タグ管理</Text>
               <Text size="xs" c="dimmed">タグ管理は近日追加予定です</Text>
             </Box>
+            <Footer />
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="forge">
+          <Stack gap="sm">
+            <Text size="xs" fw={600}>メール取込フォルダ</Text>
+            <Text size="xs" c="dimmed">OutlookからエクスポートしたメールJSONが格納されるフォルダを指定します。</Text>
+            <Group gap="xs">
+              <TextInput
+                value={draftMailFolder}
+                onChange={(e) => setDraftMailFolder(e.target.value)}
+                placeholder="フォルダのパス"
+                size="xs"
+                style={{ flex: 1 }}
+              />
+              <Button size="xs" variant="default" onClick={handleSelectMailFolder}>フォルダを選択</Button>
+            </Group>
             <Footer />
           </Stack>
         </Tabs.Panel>
