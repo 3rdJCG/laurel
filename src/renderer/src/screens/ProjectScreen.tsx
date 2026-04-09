@@ -3,7 +3,7 @@ import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import {
   Tabs, Box, Group, Title, Button, Text, TextInput,
-  Checkbox, Select, Badge, Stack
+  Checkbox, Badge, Stack, Menu, UnstyledButton
 } from '@mantine/core'
 import { useData } from '../context/DataContext'
 import { TaskItem } from '../components/TaskItem'
@@ -29,7 +29,7 @@ function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] 
 }
 
 export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Element {
-  const { projects, tasksByProject, createTask, updateTask, saveProjectData } = useData()
+  const { projects, tasksByProject, createTask, updateTask, saveProjectData, genres } = useData()
   const [activeTab, setActiveTab] = useState<string>('tasks')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem(`laurel:expand:${projectId}`)
@@ -195,15 +195,46 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
                 />
 
                 {availableGenres.length > 0 && (
-                  <Select
-                    placeholder="すべてのジャンル"
-                    data={availableGenres.map((g) => ({ value: g, label: g }))}
-                    value={filterGenre}
-                    onChange={setFilterGenre}
-                    size="xs"
-                    clearable
-                    w={160}
-                  />
+                  <Menu shadow="md" width={180}>
+                    <Menu.Target>
+                      <UnstyledButton
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '2px 8px', borderRadius: 4,
+                          border: '1px solid var(--mantine-color-dark-4)',
+                          fontSize: 12, color: 'var(--mantine-color-dark-1)'
+                        }}
+                      >
+                        {filterGenre ? (
+                          <>
+                            <span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: genres.find((g) => g.name === filterGenre)?.color ?? '#6b7280', display: 'inline-block', flexShrink: 0 }} />
+                            <span>{filterGenre}</span>
+                          </>
+                        ) : (
+                          <Text size="xs" c="dimmed">すべてのジャンル</Text>
+                        )}
+                        <Text size="xs" c="dimmed" ml={4}>▾</Text>
+                      </UnstyledButton>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item onClick={() => setFilterGenre(null)}>
+                        <Text size="xs" c="dimmed">すべてのジャンル</Text>
+                      </Menu.Item>
+                      {availableGenres.map((name) => {
+                        const genre = genres.find((g) => g.name === name)
+                        const color = genre?.color ?? '#6b7280'
+                        return (
+                          <Menu.Item
+                            key={name}
+                            onClick={() => setFilterGenre(name)}
+                            leftSection={<span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: color, display: 'inline-block' }} />}
+                          >
+                            <Text size="xs" fw={filterGenre === name ? 700 : 400}>{name}</Text>
+                          </Menu.Item>
+                        )
+                      })}
+                    </Menu.Dropdown>
+                  </Menu>
                 )}
 
                 {availableTags.length > 0 && (
