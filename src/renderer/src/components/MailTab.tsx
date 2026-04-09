@@ -4,7 +4,7 @@ import { IconExternalLink, IconAlertCircle, IconPaperclip, IconChevronDown, Icon
 import type { MailData } from '../types'
 
 function ExpandableText({ children }: { children: string }): JSX.Element {
-  const textRef = useRef<HTMLSpanElement>(null)
+  const textRef = useRef<HTMLParagraphElement>(null)
   const [overflows, setOverflows] = useState(false)
   const [expanded, setExpanded] = useState(false)
 

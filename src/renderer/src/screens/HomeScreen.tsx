@@ -133,7 +133,7 @@ type Props = {
 }
 
 export function HomeScreen({ onNavigateToProject, onNavigateToSettings }: Props): JSX.Element {
-  const { projects, tasksByProject, isLoading, error, loadErrors, dismissLoadErrors, createProject, updateProject, deleteProject, reorderProjects, createTask, updateTask } = useData()
+  const { projects, tasksByProject, isLoading, error, loadErrors, dismissLoadErrors, createProject, updateProject, deleteProject, reorderProjects, createTask } = useData()
 
   // Project UI state
   const [showAddForm, setShowAddForm] = useState(false)
