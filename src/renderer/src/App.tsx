@@ -101,6 +101,7 @@ function AppContent(): JSX.Element {
     return (
       <HomeScreen
         onNavigateToProject={(projectId) => setCurrentView({ type: 'project', projectId })}
+        onNavigateToSettings={() => setCurrentView({ type: 'settings' })}
       />
     )
   }

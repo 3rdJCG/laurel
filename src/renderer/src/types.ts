@@ -1,5 +1,20 @@
 export type TaskStatus = 'todo' | 'in-progress' | 'in-review' | 'done'
 
+export type MailData = {
+  link: string
+  meta: { id: string; internetMessageId: string; conversationId: string }
+  datetime: { received: string }
+  subject: string
+  importance: string
+  from: string
+  to: string
+  cc: string
+  bcc: string
+  replyTo: string
+  body: string
+  flags: { hasAttachments: string }
+}
+
 export type Genre = {
   name: string
   color: string
@@ -24,6 +39,7 @@ export type Task = {
   occurredAt: string | null
   dueAt: string | null
   description: string | null
+  mailData: MailData | null
 }
 
 export type Comment = {

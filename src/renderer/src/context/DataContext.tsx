@@ -5,6 +5,16 @@ import type { ProjectFile, LoadAllResult } from '../../../main/storage/projectSt
 
 export type LoadError = { filePath: string; message: string }
 
+function applyOrder(projects: Project[], savedIds: string[]): Project[] {
+  const map = new Map(projects.map((p) => [p.id, p]))
+  const ordered: Project[] = []
+  for (const id of savedIds) {
+    if (map.has(id)) { ordered.push(map.get(id)!); map.delete(id) }
+  }
+  for (const p of map.values()) ordered.push(p)
+  return ordered
+}
+
 type DataContextValue = {
   projects: Project[]
   tasksByProject: Record<string, Task[]>
@@ -15,7 +25,8 @@ type DataContextValue = {
   createProject: (name: string) => Promise<void>
   updateProject: (projectId: string, changes: Partial<Project>) => Promise<void>
   deleteProject: (projectId: string) => Promise<void>
-  createTask: (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null) => Promise<Task>
+  reorderProjects: (ids: string[]) => Promise<void>
+  createTask: (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null, overrides?: Partial<Task>) => Promise<Task>
   updateTask: (projectId: string, taskId: string, changes: Partial<Task>) => Promise<void>
   deleteTask: (projectId: string, taskId: string) => Promise<void>
   saveProjectData: (projectId: string) => Promise<void>
@@ -44,16 +55,17 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     setIsLoading(true)
     setError(null)
     try {
-      const result = (await window.api.invoke('data:load-all')) as LoadAllResult
+      const [result, savedOrder] = await Promise.all([
+        window.api.invoke('data:load-all') as Promise<LoadAllResult>,
+        window.api.invoke('projects:get-order') as Promise<string[]>
+      ])
       const projectList: Project[] = []
       const tasksMap: Record<string, Task[]> = {}
       for (const pf of result.projects) {
         projectList.push(pf.project)
         tasksMap[pf.project.id] = pf.tasks
       }
-      // Sort projects by id (ULID = chronological)
-      projectList.sort((a, b) => a.id.localeCompare(b.id))
-      setProjects(projectList)
+      setProjects(applyOrder(projectList, savedOrder))
       setTasksByProject(tasksMap)
       if (result.errors && result.errors.length > 0) {
         setLoadErrors(result.errors)
@@ -93,7 +105,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       const pf = data as ProjectFile
       setProjects((prev) => {
         const idx = prev.findIndex((p) => p.id === pf.project.id)
-        if (idx === -1) return [...prev, pf.project].sort((a, b) => a.id.localeCompare(b.id))
+        if (idx === -1) return [...prev, pf.project]
         const updated = [...prev]
         updated[idx] = pf.project
         return updated
@@ -105,7 +117,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       const pf = data as ProjectFile
       setProjects((prev) => {
         if (prev.find((p) => p.id === pf.project.id)) return prev
-        return [...prev, pf.project].sort((a, b) => a.id.localeCompare(b.id))
+        return [...prev, pf.project]
       })
       setTasksByProject((prev) => ({ ...prev, [pf.project.id]: pf.tasks }))
     })
@@ -144,7 +156,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
 
   const createProject = useCallback(async (name: string) => {
     const project: Project = { id: ulid(), name, createdAt: new Date().toISOString() }
-    setProjects((prev) => [...prev, project].sort((a, b) => a.id.localeCompare(b.id)))
+    setProjects((prev) => [...prev, project])
     setTasksByProject((prev) => ({ ...prev, [project.id]: [] }))
     const data: ProjectFile = { version: 1, project, tasks: [] }
     const result = (await window.api.invoke('data:save-project', { projectId: project.id, data })) as {
@@ -192,8 +204,13 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
     if (!result.ok) throw new Error(result.error?.message ?? 'Delete failed')
   }, [])
 
+  const reorderProjects = useCallback(async (ids: string[]) => {
+    setProjects((prev) => applyOrder(prev, ids))
+    await window.api.invoke('projects:set-order', { ids })
+  }, [])
+
   const createTask = useCallback(
-    async (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null): Promise<Task> => {
+    async (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null, overrides?: Partial<Task>): Promise<Task> => {
       const existing = tasksByProject[projectId] ?? []
       const siblings = existing.filter((t) => t.parentId === parentId)
       const maxOrder = siblings.length > 0 ? Math.max(...siblings.map((t) => t.order)) : -1
@@ -209,7 +226,9 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         occurredAt: new Date().toISOString().slice(0, 10),
         dueAt: null,
         order: maxOrder + 1,
-        description: null
+        description: null,
+        mailData: null,
+        ...overrides
       }
       const newTasks = [...existing, task]
       setTasksByProject((prev) => ({ ...prev, [projectId]: newTasks }))
@@ -323,6 +342,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         createProject,
         updateProject,
         deleteProject,
+        reorderProjects,
         createTask,
         updateTask,
         deleteTask,
