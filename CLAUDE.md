@@ -59,6 +59,39 @@ npm run typecheck  # 型チェック
 変更管理は `openspec/` ディレクトリで管理。
 新機能追加は `/opsx:propose "機能名"` から始める。
 
+## ブランチ・バージョン管理ルール
+
+> **AI向け強制ルール**: 以下に違反する操作を依頼された場合、1回必ず止めて確認すること。
+
+### ブランチ構成
+
+| ブランチ | 用途 | バージョン形式 |
+|----------|------|--------------|
+| `feature/*` | 機能開発 | — |
+| `develop` | 統合・ベータリリース | `X.Y.Z-beta.N` |
+| `master` | 安定版リリース | `X.Y.Z` |
+
+### ワークフローの自動動作
+
+- `develop` push → **Release (Beta)** が発火（ベータビルドを公開）
+- `master` push → **Release (Stable)** が発火（安定版ビルドを公開）
+- `master` push → **Auto Bump Beta** が発火（`develop` のバージョンを `X.Y.Z+1-beta.1` に自動更新）
+
+### マージルール
+
+**feature → develop**
+- `package.json` のバージョンは `X.Y.Z-beta.N` 形式であること（Auto Bump が自動管理）
+
+**develop → master（リリース時）**
+1. `package.json` のバージョンを `X.Y.Z-beta.N` → `X.Y.Z`（stable）に手動で上げる
+2. PR を作成してマージする
+3. マージ後、Auto Bump が自動で `develop` を `X.Y.(Z+1)-beta.1` に上げる（何もしなくてよい）
+
+### 禁止事項
+
+- ❌ `package.json` が `-beta` のまま master へマージする
+- ❌ master へ直接 push する（必ずPR経由）
+
 ## コミットメッセージ規約
 
 フォーマット: `<emoji> <type>: <説明>`
