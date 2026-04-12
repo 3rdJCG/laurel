@@ -17,6 +17,27 @@ body,
   flex-direction: column;
 }
 
+/* Checkpoint task row */
+.task-row--checkpoint {
+  border-left: 3px solid var(--mantine-color-violet-6);
+}
+
+.checkpoint-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--mantine-color-violet-4);
+  background-color: color-mix(in srgb, var(--mantine-color-violet-9) 40%, transparent);
+  border-radius: 3px;
+  padding: 1px 5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
 /* date input (native, still used in TaskDetailScreen) */
 input[type="date"] {
   font-family: inherit;
@@ -26,6 +47,12 @@ input[type="date"] {
   border: 1px solid #444;
   border-radius: 4px;
   padding: 3px 6px;
+}
+
+/* ===== Reminder rows ===== */
+
+.reminder-row:hover {
+  filter: brightness(1.2);
 }
 
 /* ===== Task Item & Tree Lines ===== */
@@ -80,10 +107,11 @@ input[type="date"] {
 
 .task-row {
   display: grid;
-  grid-template-columns: 24px 20px 40px minmax(0, 1fr) 88px 65px 80px 46px;
+  grid-template-columns: 20px 24px 20px 52px minmax(0, 1fr) 88px 65px 80px 46px;
   align-items: center;
   gap: 0 6px;
   padding: 5px 8px;
+  position: relative;
   background-color: var(--mantine-color-dark-7);
   border: 1px solid var(--mantine-color-dark-5);
   border-radius: 5px;
@@ -271,6 +299,58 @@ input[type="date"] {
   opacity: 1;
 }
 
+/* Phase drop overlay — shown on checkpoint row hover */
+.phase-drop-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 35%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 0 5px 5px 0;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(to right,
+    transparent 0%,
+    color-mix(in srgb, var(--mantine-color-blue-9) 75%, transparent) 100%
+  );
+  transition: opacity 0.12s;
+  z-index: 2;
+}
+
+.task-row--checkpoint:hover .phase-drop-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.task-paste-zone {
+  height: 6px;
+  margin: 1px 0;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--mantine-color-blue-8);
+  background-color: transparent;
+  color: transparent;
+  font-size: 0;
+  transition: height 0.12s, background-color 0.12s, color 0.12s, font-size 0.12s;
+  overflow: hidden;
+}
+
+.task-paste-zone:hover {
+  height: 26px;
+  background-color: color-mix(in srgb, var(--mantine-color-blue-9) 60%, transparent);
+  border-color: var(--mantine-color-blue-5);
+  color: var(--mantine-color-blue-3);
+  font-size: 11px;
+}
+
 .subtask-form {
   padding: 6px 8px;
   background-color: var(--mantine-color-dark-7);
@@ -303,9 +383,7 @@ input[type="date"] {
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   align-items: start;
-  padding: 12px;
-  height: 100%;
-  overflow-x: auto;
+  padding: 8px 12px 12px;
 }
 
 .kanban-card--dragging {
@@ -445,5 +523,296 @@ input[type="date"] {
 
 .markdown-body tr:nth-child(even) {
   background: var(--mantine-color-dark-8);
+}
+
+/* Issue内など小サイズのMarkdown表示 */
+.markdown-body--xs {
+  font-size: 12px;
+}
+
+.markdown-body--xs h1 { font-size: 16px; }
+.markdown-body--xs h2 { font-size: 14px; }
+.markdown-body--xs h3 { font-size: 13px; }
+.markdown-body--xs p { margin: 0 0 8px; }
+.markdown-body--xs ul,
+.markdown-body--xs ol { margin: 0 0 8px; padding-left: 20px; }
+.markdown-body--xs pre { padding: 8px 12px; }
+
+/* ===== Gantt View ===== */
+
+.gantt-wrapper {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--mantine-color-dark-7);
+}
+
+.gantt-left-panel {
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--mantine-color-dark-7);
+  border-right: 1px solid var(--mantine-color-dark-5);
+}
+
+.gantt-left-header {
+  height: 48px;
+  border-bottom: 1px solid var(--mantine-color-dark-5);
+  display: flex;
+  align-items: flex-end;
+  position: sticky;
+  top: 0;
+  background: var(--mantine-color-dark-7);
+  z-index: 11;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 8px 6px;
+}
+
+.gantt-left-row {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 8px;
+  border-bottom: 1px solid var(--mantine-color-dark-6);
+  cursor: pointer;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.gantt-left-row:hover {
+  background: var(--mantine-color-dark-6) !important;
+}
+
+.gantt-genre-header {
+  background: var(--mantine-color-dark-7) !important;
+  cursor: default;
+  border-top: 1px solid var(--mantine-color-dark-4);
+}
+
+.gantt-genre-header:hover {
+  background: var(--mantine-color-dark-7) !important;
+}
+
+.gantt-reorder-buttons {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.gantt-left-row:hover .gantt-reorder-buttons {
+  opacity: 1;
+}
+
+.gantt-drag-handle {
+  cursor: grab;
+  color: var(--mantine-color-dark-3);
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+
+.gantt-left-row:hover .gantt-drag-handle {
+  opacity: 1;
+}
+
+.gantt-drag-handle:active {
+  cursor: grabbing;
+}
+
+.gantt-status-badge {
+  flex-shrink: 0;
+  width: 50px;
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 3px;
+  color: #fff;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.gantt-status-badge--clickable {
+  cursor: pointer;
+  transition: filter 0.1s;
+}
+
+.gantt-status-badge--clickable:hover {
+  filter: brightness(1.3);
+}
+
+.gantt-right-panel {
+  flex-shrink: 0;
+  flex-grow: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.gantt-right-inner {
+  position: relative;
+  flex: 1;
+}
+
+.gantt-header-row {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--mantine-color-dark-7);
+  border-bottom: 1px solid var(--mantine-color-dark-5);
+  display: flex;
+  flex-direction: column;
+}
+
+.gantt-month-row {
+  display: flex;
+  height: 24px;
+  border-bottom: 1px solid var(--mantine-color-dark-6);
+  flex-shrink: 0;
+}
+
+.gantt-month-cell {
+  border-right: 1px solid var(--mantine-color-dark-5);
+  font-size: 11px;
+  color: var(--mantine-color-dark-2);
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.gantt-day-row {
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.gantt-day-cell {
+  flex-shrink: 0;
+  border-right: 1px solid var(--mantine-color-dark-6);
+  font-size: 10px;
+  color: var(--mantine-color-dark-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.gantt-day-cell--today {
+  color: var(--mantine-color-blue-4);
+  font-weight: 700;
+}
+
+.gantt-day-cell--weekend {
+  color: var(--mantine-color-dark-4);
+}
+
+.gantt-task-row {
+  height: 36px;
+  border-bottom: 1px solid var(--mantine-color-dark-6);
+  box-sizing: border-box;
+}
+
+.gantt-task-row:hover {
+  background: color-mix(in srgb, var(--mantine-color-dark-6) 40%, transparent) !important;
+}
+
+.gantt-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
+  border-radius: 3px;
+  opacity: 0.85;
+  transition: opacity 0.1s;
+  display: flex;
+  align-items: stretch;
+  z-index: 1;
+}
+
+.gantt-bar:hover {
+  opacity: 1;
+}
+
+.gantt-bar__body {
+  flex: 1;
+  min-width: 0;
+  cursor: grab;
+}
+
+.gantt-bar__body:active {
+  cursor: grabbing;
+}
+
+.gantt-bar__handle {
+  width: 6px;
+  cursor: ew-resize;
+  flex-shrink: 0;
+}
+
+.gantt-bar__handle--left {
+  border-radius: 3px 0 0 3px;
+}
+
+.gantt-bar__handle--right {
+  border-radius: 0 3px 3px 0;
+}
+
+.gantt-bar__handle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.gantt-bar--left-anchored {
+  opacity: 0.55;
+}
+
+.gantt-bar--left-anchored:hover {
+  opacity: 0.75;
+}
+
+.gantt-milestone {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%) rotate(45deg);
+  cursor: grab;
+  opacity: 0.9;
+  transition: opacity 0.1s;
+  border-radius: 2px;
+  z-index: 2;
+}
+
+.gantt-milestone:active {
+  cursor: grabbing;
+}
+
+.gantt-milestone:hover {
+  opacity: 1;
+}
+
+.gantt-today-line {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  background: var(--mantine-color-blue-5);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0.7;
+  transform: translateX(-50%);
 }
 
