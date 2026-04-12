@@ -27,8 +27,14 @@ type DataContextValue = {
   deleteProject: (projectId: string) => Promise<void>
   reorderProjects: (ids: string[]) => Promise<void>
   createTask: (projectId: string, parentId: string | null, title: string, inheritFrom?: Task | null, overrides?: Partial<Task>) => Promise<Task>
+  duplicateTaskTree: (projectId: string, sourceTaskId: string, newParentId: string | null) => Promise<Task>
+  duplicateTaskTreeBulk: (projectId: string, sourceTaskIds: string[], newParentId: string | null) => Promise<Task[]>
+  createCheckpoint: (projectId: string, rootTaskId: string, title: string) => Promise<Task>
+  moveTaskToCheckpoint: (projectId: string, taskId: string, targetCheckpointId: string) => Promise<void>
+  moveTasksToCheckpointBulk: (projectId: string, taskIds: string[], targetCheckpointId: string) => Promise<void>
   updateTask: (projectId: string, taskId: string, changes: Partial<Task>) => Promise<void>
   deleteTask: (projectId: string, taskId: string) => Promise<void>
+  deleteTasksBulk: (projectId: string, taskIds: string[]) => Promise<void>
   saveProjectData: (projectId: string) => Promise<void>
   dismissLoadErrors: () => void
   addGenre: (name: string) => Promise<void>
@@ -225,9 +231,12 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         createdAt: new Date().toISOString(),
         occurredAt: new Date().toISOString().slice(0, 10),
         dueAt: null,
+        startAt: null,
+        completedAt: null,
         order: maxOrder + 1,
         description: null,
         mailData: null,
+        isCheckpoint: false,
         ...overrides
       }
       const newTasks = [...existing, task]
@@ -277,6 +286,199 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       const result = (await window.api.invoke('data:save-project', { projectId, data })) as {
         ok: boolean
         error?: { code: string; message: string }
+      }
+      if (!result.ok) throw new Error(result.error?.message ?? 'Save failed')
+    },
+    [projects, tasksByProject]
+  )
+
+  const duplicateTaskTree = useCallback(
+    async (projectId: string, sourceTaskId: string, newParentId: string | null): Promise<Task> => {
+      const existing = tasksByProject[projectId] ?? []
+
+      const collect = (id: string): Task[] => {
+        const task = existing.find((t) => t.id === id)
+        if (!task) return []
+        const children = existing.filter((t) => t.parentId === id)
+        return [task, ...children.flatMap((c) => collect(c.id))]
+      }
+      const subtree = collect(sourceTaskId)
+
+      const idMap = new Map<string, string>()
+      for (const t of subtree) idMap.set(t.id, ulid())
+
+      const siblings = existing.filter((t) => t.parentId === newParentId)
+      const maxOrder = siblings.length > 0 ? Math.max(...siblings.map((t) => t.order)) : -1
+
+      const now = new Date().toISOString()
+      const newTasks: Task[] = subtree.map((t) => ({
+        ...t,
+        id: idMap.get(t.id)!,
+        parentId: t.id === sourceTaskId ? newParentId : idMap.get(t.parentId!)!,
+        createdAt: now,
+        order: t.id === sourceTaskId ? maxOrder + 1 : t.order,
+      }))
+
+      const allTasks = [...existing, ...newTasks]
+      setTasksByProject((prev) => ({ ...prev, [projectId]: allTasks }))
+
+      const project = projects.find((p) => p.id === projectId)!
+      const data: ProjectFile = { version: 1, project, tasks: allTasks }
+      const result = (await window.api.invoke('data:save-project', { projectId, data })) as {
+        ok: boolean
+        error?: { code: string; message: string }
+      }
+      if (!result.ok) throw new Error(result.error?.message ?? 'Save failed')
+
+      return newTasks[0]
+    },
+    [projects, tasksByProject]
+  )
+
+  const duplicateTaskTreeBulk = useCallback(
+    async (projectId: string, sourceTaskIds: string[], newParentId: string | null): Promise<Task[]> => {
+      let working = tasksByProject[projectId] ?? []
+      const results: Task[] = []
+      const now = new Date().toISOString()
+      for (const sourceTaskId of sourceTaskIds) {
+        const collect = (id: string): Task[] => {
+          const task = working.find((t) => t.id === id)
+          if (!task) return []
+          return [task, ...working.filter((t) => t.parentId === id).flatMap((c) => collect(c.id))]
+        }
+        const subtree = collect(sourceTaskId)
+        if (subtree.length === 0) continue
+        const idMap = new Map<string, string>()
+        for (const t of subtree) idMap.set(t.id, ulid())
+        const siblings = working.filter((t) => t.parentId === newParentId)
+        const maxOrder = siblings.length > 0 ? Math.max(...siblings.map((t) => t.order)) : -1
+        const newTasks: Task[] = subtree.map((t) => ({
+          ...t,
+          id: idMap.get(t.id)!,
+          parentId: t.id === sourceTaskId ? newParentId : idMap.get(t.parentId!)!,
+          createdAt: now,
+          order: t.id === sourceTaskId ? maxOrder + 1 : t.order,
+        }))
+        working = [...working, ...newTasks]
+        results.push(newTasks[0])
+      }
+      setTasksByProject((prev) => ({ ...prev, [projectId]: working }))
+      const project = projects.find((p) => p.id === projectId)!
+      const data: ProjectFile = { version: 1, project, tasks: working }
+      const result = (await window.api.invoke('data:save-project', { projectId, data })) as {
+        ok: boolean; error?: { code: string; message: string }
+      }
+      if (!result.ok) throw new Error(result.error?.message ?? 'Save failed')
+      return results
+    },
+    [projects, tasksByProject]
+  )
+
+  const createCheckpoint = useCallback(
+    async (projectId: string, rootTaskId: string, title: string): Promise<Task> => {
+      const existing = tasksByProject[projectId] ?? []
+      const existingCPs = existing.filter((t) => t.parentId === rootTaskId && t.isCheckpoint)
+      const isFirstCP = existingCPs.length === 0
+
+      const newCP: Task = {
+        id: ulid(),
+        projectId,
+        parentId: rootTaskId,
+        title,
+        status: 'todo',
+        genre: null,
+        tags: [],
+        createdAt: new Date().toISOString(),
+        occurredAt: new Date().toISOString().slice(0, 10),
+        dueAt: null,
+        startAt: null,
+        completedAt: null,
+        order: existingCPs.length,
+        description: null,
+        mailData: null,
+        isCheckpoint: true
+      }
+
+      let newTasks: Task[]
+      if (isFirstCP) {
+        const directSubtasks = existing.filter((t) => t.parentId === rootTaskId && !t.isCheckpoint)
+        const movedSubtasks = directSubtasks.map((t) => ({ ...t, parentId: newCP.id }))
+        const unchanged = existing.filter((t) => t.parentId !== rootTaskId || t.isCheckpoint)
+        newTasks = [...unchanged, newCP, ...movedSubtasks]
+      } else {
+        newTasks = [...existing, newCP]
+      }
+
+      setTasksByProject((prev) => ({ ...prev, [projectId]: newTasks }))
+      const project = projects.find((p) => p.id === projectId)!
+      const data: ProjectFile = { version: 1, project, tasks: newTasks }
+      const result = (await window.api.invoke('data:save-project', { projectId, data })) as {
+        ok: boolean
+        error?: { code: string; message: string }
+      }
+      if (!result.ok) throw new Error(result.error?.message ?? 'Save failed')
+      return newCP
+    },
+    [projects, tasksByProject]
+  )
+
+  const moveTaskToCheckpoint = useCallback(
+    async (projectId: string, taskId: string, targetCheckpointId: string): Promise<void> => {
+      const existing = tasksByProject[projectId] ?? []
+      const targetChildren = existing.filter((t) => t.parentId === targetCheckpointId)
+      const newOrder = targetChildren.length
+      const newTasks = existing.map((t) =>
+        t.id === taskId ? { ...t, parentId: targetCheckpointId, order: newOrder } : t
+      )
+      setTasksByProject((prev) => ({ ...prev, [projectId]: newTasks }))
+      const project = projects.find((p) => p.id === projectId)!
+      const data: ProjectFile = { version: 1, project, tasks: newTasks }
+      const result = (await window.api.invoke('data:save-project', { projectId, data })) as {
+        ok: boolean
+        error?: { code: string; message: string }
+      }
+      if (!result.ok) throw new Error(result.error?.message ?? 'Save failed')
+    },
+    [projects, tasksByProject]
+  )
+
+  const moveTasksToCheckpointBulk = useCallback(
+    async (projectId: string, taskIds: string[], targetCheckpointId: string): Promise<void> => {
+      const existing = tasksByProject[projectId] ?? []
+      const alreadyInTarget = existing.filter(
+        (t) => t.parentId === targetCheckpointId && !taskIds.includes(t.id)
+      ).length
+      let nextOrder = alreadyInTarget
+      const taskIdSet = new Set(taskIds)
+      const newTasks = existing.map((t) =>
+        taskIdSet.has(t.id) ? { ...t, parentId: targetCheckpointId, order: nextOrder++ } : t
+      )
+      setTasksByProject((prev) => ({ ...prev, [projectId]: newTasks }))
+      const project = projects.find((p) => p.id === projectId)!
+      const data: ProjectFile = { version: 1, project, tasks: newTasks }
+      const result = (await window.api.invoke('data:save-project', { projectId, data })) as {
+        ok: boolean; error?: { code: string; message: string }
+      }
+      if (!result.ok) throw new Error(result.error?.message ?? 'Save failed')
+    },
+    [projects, tasksByProject]
+  )
+
+  const deleteTasksBulk = useCallback(
+    async (projectId: string, taskIds: string[]): Promise<void> => {
+      const existing = tasksByProject[projectId] ?? []
+      const toDelete = new Set<string>()
+      const collect = (id: string): void => {
+        toDelete.add(id)
+        existing.filter((t) => t.parentId === id).forEach((t) => collect(t.id))
+      }
+      taskIds.forEach((id) => collect(id))
+      const newTasks = existing.filter((t) => !toDelete.has(t.id))
+      setTasksByProject((prev) => ({ ...prev, [projectId]: newTasks }))
+      const project = projects.find((p) => p.id === projectId)!
+      const data: ProjectFile = { version: 1, project, tasks: newTasks }
+      const result = (await window.api.invoke('data:save-project', { projectId, data })) as {
+        ok: boolean; error?: { code: string; message: string }
       }
       if (!result.ok) throw new Error(result.error?.message ?? 'Save failed')
     },
@@ -344,8 +546,14 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
         deleteProject,
         reorderProjects,
         createTask,
+        duplicateTaskTree,
+        duplicateTaskTreeBulk,
+        createCheckpoint,
+        moveTaskToCheckpoint,
+        moveTasksToCheckpointBulk,
         updateTask,
         deleteTask,
+        deleteTasksBulk,
         saveProjectData,
         dismissLoadErrors,
         addGenre,

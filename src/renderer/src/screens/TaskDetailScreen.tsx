@@ -136,6 +136,17 @@ function TaskInfoHeader({ task, projectId }: HeaderProps): JSX.Element {
         />
       </Group>
 
+      {/* Start date */}
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>着手日</Text>
+        <input
+          type="date"
+          value={task.startAt ?? ''}
+          onChange={(e) => updateTask(projectId, task.id, { startAt: e.target.value || null })}
+          className="task-info-date-input"
+        />
+      </Group>
+
       {/* Due date */}
       <Group gap="xs" align="center">
         <Text size="xs" c="dimmed" w={60}>期限日</Text>
@@ -143,6 +154,17 @@ function TaskInfoHeader({ task, projectId }: HeaderProps): JSX.Element {
           type="date"
           value={task.dueAt ?? ''}
           onChange={(e) => updateTask(projectId, task.id, { dueAt: e.target.value || null })}
+          className="task-info-date-input"
+        />
+      </Group>
+
+      {/* Completed date */}
+      <Group gap="xs" align="center">
+        <Text size="xs" c="dimmed" w={60}>完了日</Text>
+        <input
+          type="date"
+          value={task.completedAt ?? ''}
+          onChange={(e) => updateTask(projectId, task.id, { completedAt: e.target.value || null })}
           className="task-info-date-input"
         />
       </Group>
@@ -203,7 +225,7 @@ export function TaskDetailScreen({ projectId, taskId, onNavigateBack }: Props): 
           </Box>
         </Tabs.Panel>
 
-        <Tabs.Panel value="kanban" style={{ flex: 1, overflow: 'hidden' }}>
+        <Tabs.Panel value="kanban" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           <KanbanView projectId={projectId} parentTaskId={taskId} />
         </Tabs.Panel>
       </Tabs>

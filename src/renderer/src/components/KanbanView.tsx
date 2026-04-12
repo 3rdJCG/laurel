@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
   DragOverlay,
@@ -19,8 +20,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Paper, Badge, Group, Stack, Text, TextInput,
-  Button, ActionIcon, UnstyledButton, Box, Popover
+  Button, ActionIcon, UnstyledButton, Box, Popover, Menu
 } from '@mantine/core'
+import { IconFlag } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
 import type { Task, TaskStatus } from '../types'
 
@@ -47,9 +49,11 @@ type CardProps = {
   task: Task
   projectId: string
   isOverlay?: boolean
+  availableCPs?: Task[]
+  onMoveToCheckpoint?: (taskId: string, cpId: string) => void
 }
 
-function KanbanCard({ task, projectId, isOverlay = false }: CardProps): JSX.Element {
+function KanbanCard({ task, projectId, isOverlay = false, availableCPs = [], onMoveToCheckpoint }: CardProps): JSX.Element {
   const { updateTask, deleteTask } = useData()
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
@@ -64,7 +68,7 @@ function KanbanCard({ task, projectId, isOverlay = false }: CardProps): JSX.Elem
   const style = isOverlay
     ? { boxShadow: '0 8px 24px rgba(0,0,0,0.6)', rotate: '1.5deg', opacity: 0.95 }
     : {
-        transform: CSS.Transform.toString(transform),
+        transform: CSS.Translate.toString(transform),
         transition,
         opacity: isDragging ? 0.3 : 1
       }
@@ -140,6 +144,23 @@ function KanbanCard({ task, projectId, isOverlay = false }: CardProps): JSX.Elem
               <Text size="xs">{task.title}</Text>
             </UnstyledButton>
           )}
+          {availableCPs.length > 0 && onMoveToCheckpoint && (
+            <Menu shadow="md" width={160} position="top-end">
+              <Menu.Target>
+                <ActionIcon variant="subtle" size="xs" style={{ flexShrink: 0 }} title="Phaseに移動">
+                  <IconFlag size={11} stroke={1.5} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>Phaseに移動</Menu.Label>
+                {availableCPs.map((cp) => (
+                  <Menu.Item key={cp.id} onClick={() => onMoveToCheckpoint(task.id, cp.id)}>
+                    <Text size="xs">{cp.title}</Text>
+                  </Menu.Item>
+                ))}
+              </Menu.Dropdown>
+            </Menu>
+          )}
           <Popover opened={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} withArrow shadow="md" position="top">
             <Popover.Target>
               <ActionIcon
@@ -192,9 +213,11 @@ type ColumnProps = {
   tasks: Task[]
   projectId: string
   parentTaskId: string
+  availableCPs?: Task[]
+  onMoveToCheckpoint?: (taskId: string, cpId: string) => void
 }
 
-function KanbanColumn({ status, tasks, projectId, parentTaskId }: ColumnProps): JSX.Element {
+function KanbanColumn({ status, tasks, projectId, parentTaskId, availableCPs = [], onMoveToCheckpoint }: ColumnProps): JSX.Element {
   const { createTask, updateTask } = useData()
   const [showForm, setShowForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -248,7 +271,7 @@ function KanbanColumn({ status, tasks, projectId, parentTaskId }: ColumnProps): 
       <SortableContext items={columnTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <Box ref={setDropRef} style={{ flex: 1 }}>
           {columnTasks.map((task) => (
-            <KanbanCard key={task.id} task={task} projectId={projectId} />
+            <KanbanCard key={task.id} task={task} projectId={projectId} availableCPs={availableCPs} onMoveToCheckpoint={onMoveToCheckpoint} />
           ))}
         </Box>
       </SortableContext>
@@ -279,19 +302,37 @@ function KanbanColumn({ status, tasks, projectId, parentTaskId }: ColumnProps): 
   )
 }
 
-// ── KanbanView ────────────────────────────────────────────────────────────────
+// ── CPKanbanSection ───────────────────────────────────────────────────────────
 
-type Props = {
+type CPSectionProps = {
+  cp: Task
   projectId: string
-  parentTaskId: string
+  allTasks: Task[]
+  otherCPs: Task[]
+  onMoveToCheckpoint: (taskId: string, cpId: string) => Promise<void>
 }
 
-export function KanbanView({ projectId, parentTaskId }: Props): JSX.Element {
-  const { tasksByProject, updateTask } = useData()
+function CPKanbanSection({ cp, projectId, allTasks, otherCPs, onMoveToCheckpoint }: CPSectionProps): JSX.Element {
+  const { updateTask } = useData()
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [showDueDateInput, setShowDueDateInput] = useState(false)
+  const [inlineDueAt, setInlineDueAt] = useState(cp.dueAt ?? '')
+  const dueDateInputRef = useRef<HTMLInputElement>(null)
 
-  const allTasks = tasksByProject[projectId] ?? []
-  const childTasks = allTasks.filter((t) => t.parentId === parentTaskId)
+  useEffect(() => { setInlineDueAt(cp.dueAt ?? '') }, [cp.dueAt])
+
+  const openDueDatePicker = (): void => {
+    setShowDueDateInput(true)
+    setTimeout(() => { try { dueDateInputRef.current?.showPicker?.() } catch {} }, 50)
+  }
+
+  const handleDueDateChange = async (value: string): Promise<void> => {
+    setShowDueDateInput(false)
+    if (value === (cp.dueAt ?? '')) return
+    await updateTask(projectId, cp.id, { dueAt: value || null })
+  }
+
+  const childTasks = allTasks.filter((t) => t.parentId === cp.id)
   const activeTask = activeDragId ? childTasks.find((t) => t.id === activeDragId) ?? null : null
 
   const sensors = useSensors(
@@ -332,16 +373,257 @@ export function KanbanView({ projectId, parentTaskId }: Props): JSX.Element {
     }
   }
 
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const dueInfo = cp.dueAt
+    ? (() => {
+        const due = new Date(cp.dueAt); due.setHours(0, 0, 0, 0)
+        const days = Math.round((due.getTime() - today.getTime()) / 86400000)
+        return { days, overdue: days < 0 }
+      })()
+    : null
+
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="kanban-board">
-        {ALL_STATUSES.map((status) => (
-          <KanbanColumn key={status} status={status} tasks={childTasks} projectId={projectId} parentTaskId={parentTaskId} />
+    <>
+      {showDueDateInput && createPortal(
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 299 }}
+          onMouseDown={() => handleDueDateChange(inlineDueAt)}
+        />,
+        document.body
+      )}
+    <Paper radius="md" withBorder p={0} style={{ overflow: 'hidden', borderColor: 'var(--mantine-color-dark-4)' }}>
+    <Stack gap={0}>
+      <Group gap={8} align="center" px="sm" py={6} style={{ borderBottom: '1px solid var(--mantine-color-dark-5)', background: 'var(--mantine-color-dark-7)' }}>
+        <Group gap={5} align="center" style={{ background: 'color-mix(in srgb, var(--mantine-color-violet-9) 40%, transparent)', borderRadius: 4, padding: '3px 8px' }}>
+          <IconFlag size={12} stroke={2} color="var(--mantine-color-violet-4)" style={{ display: 'block' }} />
+          <Text size="xs" fw={800} c="violet.4" style={{ letterSpacing: '0.05em', textTransform: 'uppercase' }}>Phase</Text>
+        </Group>
+        <Text size="sm" fw={600}>{cp.title}</Text>
+        <Popover
+          opened={showDueDateInput}
+          onClose={() => setShowDueDateInput(false)}
+          withArrow
+          position="bottom-start"
+          shadow="md"
+        >
+          <Popover.Target>
+            <span>
+              {dueInfo ? (
+                <Group gap={4} align="center" style={{ display: 'inline-flex', cursor: 'pointer' }} onClick={openDueDatePicker}>
+                  <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {cp.dueAt!.replace(/-/g, '/').replace(/^(\d{4})\/(\d{2})\/(\d{2})$/, '$1/$2/$3')}
+                  </Text>
+                  <Badge
+                    size="sm"
+                    color={dueInfo.overdue ? 'red' : 'gray'}
+                    variant="light"
+                  >
+                    {dueInfo.days}d
+                  </Badge>
+                </Group>
+              ) : (
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  color="gray"
+                  px={4}
+                  style={{ fontSize: 11, height: 20 }}
+                  onClick={openDueDatePicker}
+                >
+                  + 期限
+                </Button>
+              )}
+            </span>
+          </Popover.Target>
+          <Popover.Dropdown p={6}>
+            <input
+              ref={dueDateInputRef}
+              type="date"
+              value={inlineDueAt}
+              className="task-due-date-input"
+              onChange={(e) => {
+                const v = e.target.value
+                setInlineDueAt(v)
+                if (v.length === 10 || v === '') handleDueDateChange(v)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleDueDateChange(inlineDueAt)
+                if (e.key === 'Escape') { setInlineDueAt(cp.dueAt ?? ''); setShowDueDateInput(false) }
+              }}
+            />
+          </Popover.Dropdown>
+        </Popover>
+      </Group>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="kanban-board">
+          {ALL_STATUSES.map((status) => (
+            <KanbanColumn
+              key={status}
+              status={status}
+              tasks={childTasks}
+              projectId={projectId}
+              parentTaskId={cp.id}
+              availableCPs={otherCPs}
+              onMoveToCheckpoint={onMoveToCheckpoint}
+            />
+          ))}
+        </div>
+        <DragOverlay>
+          {activeTask ? <KanbanCard task={activeTask} projectId={projectId} isOverlay /> : null}
+        </DragOverlay>
+      </DndContext>
+    </Stack>
+    </Paper>
+    </>
+  )
+}
+
+// ── KanbanView ────────────────────────────────────────────────────────────────
+
+type Props = {
+  projectId: string
+  parentTaskId: string
+}
+
+export function KanbanView({ projectId, parentTaskId }: Props): JSX.Element {
+  const { tasksByProject, updateTask, createCheckpoint, moveTaskToCheckpoint } = useData()
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [showAddCpForm, setShowAddCpForm] = useState(false)
+  const [newCpTitle, setNewCpTitle] = useState('')
+  const cpInputRef = useRef<HTMLInputElement>(null)
+
+  const allTasks = tasksByProject[projectId] ?? []
+
+  const checkpoints = allTasks
+    .filter((t) => t.parentId === parentTaskId && t.isCheckpoint)
+    .sort((a, b) => a.order - b.order)
+  const hasCheckpoints = checkpoints.length > 0
+
+  // Non-CP mode: flat task list
+  const childTasks = allTasks.filter((t) => t.parentId === parentTaskId)
+  const activeTask = activeDragId ? childTasks.find((t) => t.id === activeDragId) ?? null : null
+
+  useEffect(() => {
+    if (showAddCpForm) cpInputRef.current?.focus()
+  }, [showAddCpForm])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
+
+  const handleAddCp = async (): Promise<void> => {
+    const title = newCpTitle.trim()
+    if (!title) return
+    await createCheckpoint(projectId, parentTaskId, title)
+    setNewCpTitle('')
+    setShowAddCpForm(false)
+  }
+
+  const handleAddCpKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') handleAddCp()
+    if (e.key === 'Escape') { setNewCpTitle(''); setShowAddCpForm(false) }
+  }
+
+  const handleMoveToCheckpoint = async (taskId: string, targetCpId: string): Promise<void> => {
+    await moveTaskToCheckpoint(projectId, taskId, targetCpId)
+  }
+
+  const handleDragStart = (event: DragStartEvent): void => {
+    setActiveDragId(String(event.active.id))
+  }
+
+  const handleDragEnd = async (event: DragEndEvent): Promise<void> => {
+    const { active, over } = event
+    setActiveDragId(null)
+    if (!over || active.id === over.id) return
+
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    const draggedTask = childTasks.find((t) => t.id === activeId)
+    if (!draggedTask) return
+
+    const overIsColumn = (ALL_STATUSES as string[]).includes(overId)
+    const overTask = overIsColumn ? null : childTasks.find((t) => t.id === overId)
+    const targetStatus: TaskStatus = overIsColumn
+      ? (overId as TaskStatus)
+      : (overTask?.status ?? draggedTask.status)
+
+    if (draggedTask.status !== targetStatus) {
+      const targetColumnTasks = childTasks.filter((t) => t.status === targetStatus).sort((a, b) => a.order - b.order)
+      const newOrder = overTask ? targetColumnTasks.findIndex((t) => t.id === overId) : targetColumnTasks.length
+      await updateTask(projectId, activeId, { status: targetStatus, order: newOrder < 0 ? targetColumnTasks.length : newOrder })
+    } else if (!overIsColumn) {
+      const columnTasks = childTasks.filter((t) => t.status === draggedTask.status).sort((a, b) => a.order - b.order)
+      const oldIndex = columnTasks.findIndex((t) => t.id === activeId)
+      const newIndex = columnTasks.findIndex((t) => t.id === overId)
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
+      const reordered = arrayMove(columnTasks, oldIndex, newIndex)
+      await Promise.all(reordered.map((t, i) => (t.order !== i ? updateTask(projectId, t.id, { order: i }) : null)).filter(Boolean))
+    }
+  }
+
+  // Add CP form UI (shared between CP and non-CP modes)
+  const addCpForm = showAddCpForm ? (
+    <Group gap={4}>
+      <TextInput
+        ref={cpInputRef}
+        value={newCpTitle}
+        onChange={(e) => setNewCpTitle(e.target.value)}
+        onKeyDown={handleAddCpKeyDown}
+        placeholder="Phase名"
+        size="xs"
+        style={{ width: 160 }}
+      />
+      <Button size="xs" color="violet" onClick={handleAddCp}>追加</Button>
+      <Button size="xs" variant="default" onClick={() => { setNewCpTitle(''); setShowAddCpForm(false) }}>キャンセル</Button>
+    </Group>
+  ) : (
+    <Button size="xs" variant="subtle" color="violet" leftSection={<IconFlag size={10} />} onClick={() => setShowAddCpForm(true)}>
+      Phaseを追加
+    </Button>
+  )
+
+  if (hasCheckpoints) {
+    return (
+      <Stack gap="xs" px="md" pt="sm" pb="md">
+        {checkpoints.map((cp) => (
+          <CPKanbanSection
+            key={cp.id}
+            cp={cp}
+            projectId={projectId}
+            allTasks={allTasks}
+            otherCPs={checkpoints.filter((c) => c.id !== cp.id)}
+            onMoveToCheckpoint={handleMoveToCheckpoint}
+          />
         ))}
-      </div>
-      <DragOverlay>
-        {activeTask ? <KanbanCard task={activeTask} projectId={projectId} isOverlay /> : null}
-      </DragOverlay>
-    </DndContext>
+        <Group justify="flex-start" px={4}>
+          {addCpForm}
+        </Group>
+      </Stack>
+    )
+  }
+
+  return (
+    <Stack gap={0}>
+      <Group justify="flex-end" mb="xs" px={4}>
+        {addCpForm}
+      </Group>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="kanban-board">
+          {ALL_STATUSES.map((status) => (
+            <KanbanColumn
+              key={status}
+              status={status}
+              tasks={childTasks}
+              projectId={projectId}
+              parentTaskId={parentTaskId}
+            />
+          ))}
+        </div>
+        <DragOverlay>
+          {activeTask ? <KanbanCard task={activeTask} projectId={projectId} isOverlay /> : null}
+        </DragOverlay>
+      </DndContext>
+    </Stack>
   )
 }

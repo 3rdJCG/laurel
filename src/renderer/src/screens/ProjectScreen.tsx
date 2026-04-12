@@ -3,18 +3,21 @@ import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import {
   Tabs, Box, Group, Title, Button, Text, TextInput,
-  Checkbox, Badge, Stack, Menu, UnstyledButton
+  Checkbox, Stack, Menu, UnstyledButton, ActionIcon
 } from '@mantine/core'
+import { IconCopy, IconClipboard, IconX } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
 import { TaskItem } from '../components/TaskItem'
 import { IssuesTab } from '../components/IssuesTab'
+import { GanttView } from '../components/GanttView'
 import { ErrorBanner } from '../components/ErrorBanner'
 import type { Task } from '../types'
 
 type Props = {
   projectId: string
+  initialTab?: string
   onNavigateHome: () => void
-  onNavigateToTask: (projectId: string, taskId: string) => void
+  onNavigateToTask: (projectId: string, taskId: string, fromTab?: string) => void
 }
 
 function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] {
@@ -28,9 +31,9 @@ function filterTasksByVisibility(tasks: Task[], showCompleted: boolean): Task[] 
   return tasks.filter((t) => !hiddenIds.has(t.id))
 }
 
-export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Element {
-  const { projects, tasksByProject, createTask, updateTask, saveProjectData, genres } = useData()
-  const [activeTab, setActiveTab] = useState<string>('tasks')
+export function ProjectScreen({ projectId, initialTab, onNavigateToTask }: Props): JSX.Element {
+  const { projects, tasksByProject, createTask, duplicateTaskTreeBulk, deleteTasksBulk, updateTask, saveProjectData, genres, updateGenres, moveTasksToCheckpointBulk } = useData()
+  const [activeTab, setActiveTab] = useState<string>(initialTab ?? 'tasks')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem(`laurel:expand:${projectId}`)
     return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>()
@@ -41,17 +44,20 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
   const [filterGenre, setFilterGenre] = useState<string | null>(null)
   const [filterTags, setFilterTags] = useState<string[]>([])
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [clipboardIds, setClipboardIds] = useState<string[]>([])
   const rootInputRef = useRef<HTMLInputElement>(null)
 
   const project = projects.find((p) => p.id === projectId)
   const allTasks = tasksByProject[projectId] ?? []
 
   useEffect(() => {
+    setActiveTab(initialTab ?? 'tasks')
     setFilterGenre(null)
     setFilterTags([])
     const saved = localStorage.getItem(`laurel:expand:${projectId}`)
     setExpandedIds(saved ? new Set<string>(JSON.parse(saved)) : new Set<string>())
-  }, [projectId])
+  }, [projectId, initialTab])
 
   const handleToggleExpand = (taskId: string): void => {
     setExpandedIds((prev) => {
@@ -69,13 +75,7 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
     return [...genres].sort()
   }, [allTasks])
 
-  const availableTags = useMemo(() => {
-    const tags = new Set<string>()
-    allTasks.forEach((t) => t.tags.forEach((tag) => tags.add(tag)))
-    return [...tags].sort()
-  }, [allTasks])
-
-  useEffect(() => {
+useEffect(() => {
     if (showAddRootForm) rootInputRef.current?.focus()
   }, [showAddRootForm])
 
@@ -90,6 +90,51 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
     }
     setRootTaskTitle('')
     setShowAddRootForm(false)
+  }
+
+  const handleSelect = (taskId: string, selected: boolean): void => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (selected) next.add(taskId)
+      else next.delete(taskId)
+      return next
+    })
+  }
+
+  const handleCopy = (): void => {
+    setClipboardIds([...selectedIds])
+    setSelectedIds(new Set())
+  }
+
+  const handleDeleteSelected = async (): Promise<void> => {
+    try {
+      await deleteTasksBulk(projectId, [...selectedIds])
+      setSelectedIds(new Set())
+      setSaveError(null)
+    } catch (err) {
+      setSaveError(String(err))
+    }
+  }
+
+  const handleMoveToPhase = async (phaseId: string): Promise<void> => {
+    try {
+      await moveTasksToCheckpointBulk(projectId, [...selectedIds], phaseId)
+      setSelectedIds(new Set())
+      setSaveError(null)
+    } catch (err) {
+      setSaveError(String(err))
+    }
+  }
+
+  const handlePaste = async (parentId: string | null): Promise<void> => {
+    if (clipboardIds.length === 0) return
+    try {
+      await duplicateTaskTreeBulk(projectId, clipboardIds, parentId)
+      setClipboardIds([])
+      setSaveError(null)
+    } catch (err) {
+      setSaveError(String(err))
+    }
   }
 
   const handleRetry = async (): Promise<void> => {
@@ -165,13 +210,22 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
           <IssuesTab projectId={projectId} />
         </Tabs.Panel>
 
-        <Tabs.Panel value="gantt" style={{ flex: 1 }}>
-          <Box p="xl" style={{ textAlign: 'center' }}>
-            <Text c="dimmed" size="sm">Gantt chart は近日公開予定です</Text>
-          </Box>
+        <Tabs.Panel value="gantt" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+          <GanttView
+            tasks={allTasks}
+            genres={genres}
+            expandedIds={expandedIds}
+            onToggleExpand={handleToggleExpand}
+            onNavigate={(taskId) => onNavigateToTask(projectId, taskId, 'gantt')}
+            onUpdateTask={updateTask}
+            onReorderGenres={(reordered) => {
+              updateGenres(reordered)
+              window.api.invoke('settings:genres-set', reordered)
+            }}
+          />
         </Tabs.Panel>
 
-        <Tabs.Panel value="tasks" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Tabs.Panel value="tasks" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           <Stack gap={0} style={{ flex: 1, minHeight: 0 }}>
             {saveError && (
               <Box px="md" pt="xs">
@@ -187,13 +241,25 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
             {/* Toolbar */}
             <Box px="md" py="xs" style={{ borderBottom: '1px solid var(--mantine-color-dark-5)' }}>
               <Group gap="sm" wrap="wrap">
-                <Checkbox
-                  label="完了タスクを表示"
-                  checked={showCompletedTasks}
-                  onChange={(e) => setShowCompletedTasks(e.currentTarget.checked)}
-                  size="xs"
-                />
-
+                {selectedIds.size > 0 && (
+                  <Group gap={6}>
+                    <Text size="xs" c="dimmed">{selectedIds.size}件選択中</Text>
+                    <Button size="xs" leftSection={<IconCopy size={12} />} onClick={handleCopy}>コピー</Button>
+                    <Button size="xs" color="red" variant="light" onClick={handleDeleteSelected}>削除</Button>
+                    <ActionIcon size="xs" variant="subtle" onClick={() => setSelectedIds(new Set())} title="選択解除">
+                      <IconX size={12} />
+                    </ActionIcon>
+                  </Group>
+                )}
+                {clipboardIds.length > 0 && selectedIds.size === 0 && (
+                  <Group gap={6}>
+                    <Text size="xs" c="dimmed">{clipboardIds.length}件コピー済み</Text>
+                    <Button size="xs" leftSection={<IconClipboard size={12} />} onClick={() => handlePaste(null)}>ルートに追加</Button>
+                    <ActionIcon size="xs" variant="subtle" onClick={() => setClipboardIds([])} title="クリア">
+                      <IconX size={12} />
+                    </ActionIcon>
+                  </Group>
+                )}
                 {availableGenres.length > 0 && (
                   <Menu shadow="md" width={180}>
                     <Menu.Target>
@@ -237,25 +303,13 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
                   </Menu>
                 )}
 
-                {availableTags.length > 0 && (
-                  <Group gap={4}>
-                    {availableTags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        size="sm"
-                        variant={filterTags.includes(tag) ? 'filled' : 'outline'}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() =>
-                          setFilterTags((prev) =>
-                            prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-                          )
-                        }
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
-                )}
+                <Checkbox
+                  label="完了タスクを表示"
+                  checked={showCompletedTasks}
+                  onChange={(e) => setShowCompletedTasks(e.currentTarget.checked)}
+                  size="xs"
+                />
+
               </Group>
             </Box>
 
@@ -278,6 +332,11 @@ export function ProjectScreen({ projectId, onNavigateToTask }: Props): JSX.Eleme
                         expandedIds={expandedIds}
                         onToggleExpand={handleToggleExpand}
                         onNavigate={(taskId) => onNavigateToTask(projectId, taskId)}
+                        selectedIds={selectedIds}
+                        onSelect={handleSelect}
+                        clipboardCount={clipboardIds.length}
+                        onPasteAfter={handlePaste}
+                        onMoveToPhase={handleMoveToPhase}
                       />
                     ))}
                   </SortableContext>

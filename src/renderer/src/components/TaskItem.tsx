@@ -5,7 +5,7 @@ import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } 
 import { CSS } from '@dnd-kit/utilities'
 import {
   Badge, Menu, Group, ActionIcon, UnstyledButton,
-  TextInput, Button, Text, Popover, Stack
+  TextInput, Button, Text, Popover, Stack, Checkbox
 } from '@mantine/core'
 import {
   IconGripVertical,
@@ -15,7 +15,8 @@ import {
   IconX,
   IconPencil,
   IconTrash,
-  IconPlus
+  IconPlus,
+  IconFlag
 } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
 import type { Task, TaskStatus } from '../types'
@@ -54,20 +55,38 @@ type Props = {
   expandedIds: Set<string>
   onToggleExpand: (taskId: string) => void
   onNavigate?: (taskId: string) => void
+  selectedIds?: Set<string>
+  onSelect?: (taskId: string, selected: boolean) => void
+  clipboardCount?: number
+  onPasteAfter?: (parentId: string | null) => Promise<void>
+  onMoveToPhase?: (phaseId: string) => Promise<void>
 }
 
-export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onToggleExpand, onNavigate }: Props): JSX.Element {
-  const { updateTask, deleteTask, createTask, genres, addGenre } = useData()
+export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onToggleExpand, onNavigate, selectedIds, onSelect, clipboardCount, onPasteAfter, onMoveToPhase }: Props): JSX.Element {
+  const { updateTask, deleteTask, createTask, createCheckpoint, moveTaskToCheckpoint, genres, addGenre, tasksByProject } = useData()
   const isRoot = task.parentId === null
+  const isCheckpoint = task.isCheckpoint === true
+  const rootHasCheckpoints = isRoot
+    ? allTasks.some((t) => t.parentId === task.id && t.isCheckpoint)
+    : false
+
+  // フェーズ移動の参照にはフィルター前の生データを使用（完了非表示などで除外されないよう）
+  const rawTasks = tasksByProject[task.projectId] ?? []
+  const parentTask = !isRoot && !isCheckpoint ? rawTasks.find((t) => t.id === task.parentId) : null
+  const availableCPs = parentTask?.isCheckpoint
+    ? rawTasks.filter((t) => t.parentId === parentTask.parentId && t.isCheckpoint && t.id !== parentTask.id)
+    : []
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id })
-  const sortableStyle = { transform: CSS.Transform.toString(transform), transition }
+  const sortableStyle = { transform: CSS.Translate.toString(transform), transition }
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [newGenreName, setNewGenreName] = useState('')
   const [showAddGenreForm, setShowAddGenreForm] = useState(false)
   const [showSubtaskForm, setShowSubtaskForm] = useState(false)
   const [subtaskTitle, setSubtaskTitle] = useState('')
+  const [showCheckpointForm, setShowCheckpointForm] = useState(false)
+  const [checkpointTitle, setCheckpointTitle] = useState('')
 
   const [showTitleInput, setShowTitleInput] = useState(false)
   const [inlineTitleVal, setInlineTitleVal] = useState(task.title)
@@ -84,6 +103,7 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
   const dueDateInputRef = useRef<HTMLInputElement>(null)
 
   const subtaskRef = useRef<HTMLInputElement>(null)
+  const checkpointRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (showTitleInput) { setInlineTitleVal(task.title); titleInputRef.current?.focus() }
@@ -99,6 +119,7 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
     setTimeout(() => { try { occurredAtInputRef.current?.showPicker?.() } catch {} }, 50)
   }
   useEffect(() => { if (showSubtaskForm) subtaskRef.current?.focus() }, [showSubtaskForm])
+  useEffect(() => { if (showCheckpointForm) checkpointRef.current?.focus() }, [showCheckpointForm])
   useEffect(() => { setInlineDueAt(task.dueAt ?? '') }, [task.dueAt])
   useEffect(() => { setInlineOccurredAt(task.occurredAt ?? '') }, [task.occurredAt])
 
@@ -164,6 +185,22 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
     if (e.key === 'Escape') { setSubtaskTitle(''); setShowSubtaskForm(false) }
   }
 
+  const handleCheckpointCreate = async (): Promise<void> => {
+    const title = checkpointTitle.trim()
+    if (!title) return
+    try { await createCheckpoint(task.projectId, task.id, title) } catch (err) { onSaveError?.(String(err)) }
+    setCheckpointTitle(''); setShowCheckpointForm(false)
+  }
+
+  const handleCheckpointKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') handleCheckpointCreate()
+    if (e.key === 'Escape') { setCheckpointTitle(''); setShowCheckpointForm(false) }
+  }
+
+  const handleMoveToCheckpoint = async (targetCpId: string): Promise<void> => {
+    try { await moveTaskToCheckpoint(task.projectId, task.id, targetCpId) } catch (err) { onSaveError?.(String(err)) }
+  }
+
   const handleChildDragEnd = async (event: DragEndEvent): Promise<void> => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -199,7 +236,41 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
         document.body
       )}
     <div ref={setNodeRef} style={sortableStyle} className={`task-item task-item--depth-${depth}`}>
-      <div className="task-row">
+      <div className={`task-row${isCheckpoint ? ' task-row--checkpoint' : ''}`}>
+        {/* Phase drop overlay: copy / move into this Phase on hover */}
+        {isCheckpoint && ((clipboardCount ?? 0) > 0 || ((selectedIds?.size ?? 0) > 0 && !selectedIds?.has(task.id))) && (
+          <div className="phase-drop-overlay">
+            {(clipboardCount ?? 0) > 0 && onPasteAfter && (
+              <Button
+                size="xs"
+                variant="filled"
+                color="blue"
+                onClick={(e) => { e.stopPropagation(); void onPasteAfter(task.id) }}
+              >
+                ここにコピー
+              </Button>
+            )}
+            {(selectedIds?.size ?? 0) > 0 && !selectedIds?.has(task.id) && onMoveToPhase && (
+              <Button
+                size="xs"
+                variant="filled"
+                color="teal"
+                onClick={(e) => { e.stopPropagation(); void onMoveToPhase(task.id) }}
+              >
+                ここに移動
+              </Button>
+            )}
+          </div>
+        )}
+        {/* Checkbox */}
+        <Checkbox
+          size="xs"
+          checked={selectedIds?.has(task.id) ?? false}
+          onChange={(e) => onSelect?.(task.id, e.currentTarget.checked)}
+          onClick={(e) => e.stopPropagation()}
+          styles={{ input: { cursor: 'pointer' } }}
+        />
+
         {/* Drag handle */}
         <UnstyledButton
           className="drag-handle"
@@ -220,9 +291,13 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
           <span className="expand-toggle-placeholder" />
         )}
 
-        {/* Genre badge (root tasks only) */}
+        {/* Genre badge (root tasks only) / CP label (checkpoints) */}
         <div className="task-genre-slot">
-          {isRoot && (
+          {isCheckpoint ? (
+            <span className="checkpoint-label">
+              <IconFlag size={9} stroke={2} />Phase
+            </span>
+          ) : isRoot ? (
             <Menu shadow="md" width={180} onClose={() => { setShowAddGenreForm(false); setNewGenreName('') }}>
               <Menu.Target>
                 <UnstyledButton title="ジャンルを変更">
@@ -273,7 +348,7 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
                 )}
               </Menu.Dropdown>
             </Menu>
-          )}
+          ) : null}
         </div>
 
         {/* Title */}
@@ -447,10 +522,49 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
 
         {/* Actions */}
         <div className="task-actions">
-          {isRoot && (
+          {/* Root without CPs: + をドロップダウンにまとめてサブタスク追加とPhase追加を統合 */}
+          {isRoot && !rootHasCheckpoints && (
+            <Menu shadow="md" width={160}>
+              <Menu.Target>
+                <ActionIcon variant="subtle" size="xs" title="追加">
+                  <IconPlus size={12} stroke={2} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item onClick={() => setShowSubtaskForm(true)}>サブタスクを追加</Menu.Item>
+                <Menu.Item onClick={() => setShowCheckpointForm(true)}>Phaseを追加</Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          )}
+          {/* Root with CPs: Phase追加のみ */}
+          {isRoot && rootHasCheckpoints && (
+            <ActionIcon variant="subtle" size="xs" color="violet" onClick={() => setShowCheckpointForm(true)} title="Phaseを追加">
+              <IconFlag size={12} stroke={2} />
+            </ActionIcon>
+          )}
+          {/* CP tasks: サブタスク追加 */}
+          {isCheckpoint && (
             <ActionIcon variant="subtle" size="xs" onClick={() => setShowSubtaskForm(true)} title="サブタスクを追加">
               <IconPlus size={12} stroke={2} />
             </ActionIcon>
+          )}
+          {/* Move to CP: non-CP subtasks with available CPs */}
+          {availableCPs.length > 0 && (
+            <Menu shadow="md" width={180}>
+              <Menu.Target>
+                <ActionIcon variant="subtle" size="xs" title="Phaseに移動">
+                  <IconFlag size={12} stroke={1.5} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>Phaseに移動</Menu.Label>
+                {availableCPs.map((cp) => (
+                  <Menu.Item key={cp.id} onClick={() => handleMoveToCheckpoint(cp.id)}>
+                    <Text size="xs">{cp.title}</Text>
+                  </Menu.Item>
+                ))}
+              </Menu.Dropdown>
+            </Menu>
           )}
           <Popover opened={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} withArrow shadow="md">
             <Popover.Target>
@@ -475,6 +589,16 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
         </div>
       </div>
 
+      {/* Paste zone */}
+      {(clipboardCount ?? 0) > 0 && onPasteAfter && (
+        <div
+          className="task-paste-zone"
+          onClick={() => onPasteAfter(isCheckpoint ? task.id : task.parentId)}
+        >
+          {isCheckpoint ? `▼ ${task.title} に貼り付け` : '▼ ここに貼り付け'}
+        </div>
+      )}
+
       {showSubtaskForm && (
         <div className="subtask-form" style={{ marginLeft: depth * 12 + 12 }}>
           <Group gap="xs">
@@ -494,6 +618,25 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
         </div>
       )}
 
+      {showCheckpointForm && (
+        <div className="subtask-form" style={{ marginLeft: depth * 12 + 12 }}>
+          <Group gap="xs">
+            <input
+              ref={checkpointRef}
+              type="text"
+              value={checkpointTitle}
+              onChange={(e) => setCheckpointTitle(e.target.value)}
+              onKeyDown={handleCheckpointKeyDown}
+              placeholder="Phase名"
+              className="task-tag-input"
+              style={{ flex: 1 }}
+            />
+            <Button size="xs" color="violet" onClick={handleCheckpointCreate}>追加</Button>
+            <Button size="xs" variant="default" onClick={() => { setCheckpointTitle(''); setShowCheckpointForm(false) }}>キャンセル</Button>
+          </Group>
+        </div>
+      )}
+
       {/* Recursive children */}
       {hasChildren && isExpanded && (
         <DndContext collisionDetection={closestCenter} onDragEnd={handleChildDragEnd}>
@@ -507,6 +650,11 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
                 onSaveError={onSaveError}
                 expandedIds={expandedIds}
                 onToggleExpand={onToggleExpand}
+                selectedIds={selectedIds}
+                onSelect={onSelect}
+                clipboardCount={clipboardCount}
+                onPasteAfter={onPasteAfter}
+                onMoveToPhase={onMoveToPhase}
               />
             ))}
           </SortableContext>
