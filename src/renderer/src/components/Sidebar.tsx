@@ -11,8 +11,8 @@ import iconWide from '../assets/icon-wide.png'
 
 export type View =
   | { type: 'home' }
-  | { type: 'project'; projectId: string }
-  | { type: 'task'; projectId: string; taskId: string }
+  | { type: 'project'; projectId: string; initialTab?: string }
+  | { type: 'task'; projectId: string; taskId: string; fromTab?: string }
   | { type: 'settings' }
 
 type Props = {

@@ -38,8 +38,11 @@ export type Task = {
   order: number
   occurredAt: string | null
   dueAt: string | null
+  startAt: string | null
+  completedAt: string | null
   description: string | null
   mailData: MailData | null
+  isCheckpoint: boolean
 }
 
 export type Comment = {

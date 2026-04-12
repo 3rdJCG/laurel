@@ -50,7 +50,10 @@ export function loadAll(dataDir: string): LoadAllResult {
         ...t,
         order: t.order ?? i,
         description: t.description ?? null,
-        mailData: t.mailData ?? null
+        mailData: t.mailData ?? null,
+        isCheckpoint: t.isCheckpoint ?? false,
+        startAt: t.startAt ?? null,
+        completedAt: t.completedAt ?? null
       }))
       parsed.comments = parsed.comments ?? []
       parsed.issues = parsed.issues ?? []
@@ -72,7 +75,10 @@ export function loadOne(filePath: string): ProjectFile | null {
       ...t,
       order: t.order ?? i,
       description: t.description ?? null,
-      mailData: t.mailData ?? null
+      mailData: t.mailData ?? null,
+      isCheckpoint: t.isCheckpoint ?? false,
+      startAt: t.startAt ?? null,
+      completedAt: t.completedAt ?? null
     }))
     parsed.comments = parsed.comments ?? []
     parsed.issues = parsed.issues ?? []

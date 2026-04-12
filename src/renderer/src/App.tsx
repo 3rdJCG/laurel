@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { MantineProvider, AppShell, createTheme } from '@mantine/core'
 import { useLocalStorage } from '@mantine/hooks'
 import { Notifications } from '@mantine/notifications'
@@ -57,23 +57,55 @@ function AppContent(): JSX.Element {
     defaultValue: false
   })
   const settingsIsDirtyRef = useRef<() => boolean>(() => false)
+  const historyRef = useRef<View[]>([])
 
-  const handleNavigate = (view: View): void => {
-    if (currentView.type === 'settings' && settingsIsDirtyRef.current()) {
-      const ok = window.confirm('設定の変更が保存されていません。破棄して移動しますか？')
-      if (!ok) return
+  const handleNavigate = useCallback(
+    (view: View, historyOverride?: View): void => {
+      if (currentView.type === 'settings' && settingsIsDirtyRef.current()) {
+        const ok = window.confirm('設定の変更が保存されていません。破棄して移動しますか？')
+        if (!ok) return
+      }
+      // Project間の遷移は履歴に積まない（戻るでHomeに戻るようにする）
+      const skipHistory = currentView.type === 'project' && view.type === 'project'
+      if (!skipHistory) {
+        historyRef.current.push(historyOverride ?? currentView)
+      }
+      setCurrentView(view)
+    },
+    [currentView]
+  )
+
+  const handleBack = useCallback((): void => {
+    const prev = historyRef.current.pop()
+    if (prev) {
+      setCurrentView(prev)
     }
-    setCurrentView(view)
-  }
+  }, [])
+
+  useEffect(() => {
+    const onMouseUp = (e: MouseEvent): void => {
+      // Mouse button 3 = browser back button
+      if (e.button === 3) {
+        e.preventDefault()
+        handleBack()
+      }
+    }
+    window.addEventListener('mouseup', onMouseUp)
+    return () => window.removeEventListener('mouseup', onMouseUp)
+  }, [handleBack])
 
   const renderMain = (): JSX.Element => {
     if (currentView.type === 'project') {
       return (
         <ProjectScreen
           projectId={currentView.projectId}
-          onNavigateHome={() => setCurrentView({ type: 'home' })}
-          onNavigateToTask={(projectId, taskId) =>
-            setCurrentView({ type: 'task', projectId, taskId })
+          initialTab={currentView.initialTab}
+          onNavigateHome={handleBack}
+          onNavigateToTask={(projectId, taskId, fromTab) =>
+            handleNavigate(
+              { type: 'task', projectId, taskId, fromTab },
+              { type: 'project', projectId: currentView.projectId, initialTab: fromTab ?? 'tasks' }
+            )
           }
         />
       )
@@ -83,9 +115,7 @@ function AppContent(): JSX.Element {
         <TaskDetailScreen
           projectId={currentView.projectId}
           taskId={currentView.taskId}
-          onNavigateBack={() =>
-            setCurrentView({ type: 'project', projectId: currentView.projectId })
-          }
+          onNavigateBack={handleBack}
         />
       )
     }
@@ -100,8 +130,8 @@ function AppContent(): JSX.Element {
     }
     return (
       <HomeScreen
-        onNavigateToProject={(projectId) => setCurrentView({ type: 'project', projectId })}
-        onNavigateToSettings={() => setCurrentView({ type: 'settings' })}
+        onNavigateToProject={(projectId) => handleNavigate({ type: 'project', projectId })}
+        onNavigateToSettings={() => handleNavigate({ type: 'settings' })}
       />
     )
   }
