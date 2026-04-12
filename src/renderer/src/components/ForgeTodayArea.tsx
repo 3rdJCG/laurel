@@ -16,6 +16,9 @@ export type ForgeMail = {
 // ── Mail card content (exported for DragOverlay in parent) ────────────────────
 
 export function MailCardContent({ mail }: { mail: ForgeMail }): JSX.Element {
+  if (!mail?.data?.mail) {
+    return <Box p="sm"><Text size="xs" c="dimmed">メールデータなし</Text></Box>
+  }
   const m = mail.data.mail
   const receivedDate = new Date(m.datetime.received).toLocaleString('ja-JP', {
     year: 'numeric', month: '2-digit', day: '2-digit',

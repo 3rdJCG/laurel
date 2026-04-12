@@ -342,7 +342,11 @@ function setupIpc(): void {
       if (processedIds.includes(id)) continue
       try {
         const raw = fs.readFileSync(path.join(mailFolder, file), 'utf-8')
-        const data = JSON.parse(raw) as unknown
+        const parsed = JSON.parse(raw) as Record<string, unknown>
+        // JSONがトップレベルにmailフィールドを持つ場合とフラットな場合の両方に対応
+        const mail = (parsed.mail ?? parsed) as Record<string, unknown>
+        if (!mail.datetime) continue
+        const data = parsed.mail ? parsed : { mail: parsed }
         mails.push({ id, data })
       } catch {
         // skip unreadable files
