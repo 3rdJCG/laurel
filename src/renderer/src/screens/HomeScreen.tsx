@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Stack, Group, Text, Title, TextInput, Button, ActionIcon,
-  Card, Box, Loader, Center
+  Card, Box, Loader, Center, Badge
 } from '@mantine/core'
-import { IconPencil, IconTrash, IconGripVertical } from '@tabler/icons-react'
+import { IconPencil, IconTrash, IconGripVertical, IconAlertTriangle, IconClock, IconChevronDown, IconChevronRight } from '@tabler/icons-react'
 import {
   DndContext, DragOverlay,
   pointerWithin, type DragEndEvent, type DragStartEvent,
@@ -18,7 +18,141 @@ import { notifications } from '@mantine/notifications'
 import { useData } from '../context/DataContext'
 import { ErrorBanner } from '../components/ErrorBanner'
 import { ForgeTodayArea, MailCardContent, type ForgeMail } from '../components/ForgeTodayArea'
-import type { Project } from '../types'
+import type { Project, Task } from '../types'
+
+// ── Reminder Section ─────────────────────────────────────────────────────────
+
+type ReminderTask = Task & { projectName: string }
+type ReminderCategory = 'overdue' | 'today' | 'upcoming'
+
+function categorizeByDue(dueAt: string, todayStr: string): ReminderCategory | null {
+  if (dueAt < todayStr) return 'overdue'
+  if (dueAt === todayStr) return 'today'
+  const due = new Date(dueAt + 'T00:00:00')
+  const today = new Date(todayStr + 'T00:00:00')
+  const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays >= 1 && diffDays <= 7) return 'upcoming'
+  return null
+}
+
+function formatDueLabel(dueAt: string, todayStr: string): string {
+  if (dueAt === todayStr) return '今日'
+  const due = new Date(dueAt + 'T00:00:00')
+  const today = new Date(todayStr + 'T00:00:00')
+  const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0) return `${Math.abs(diffDays)}日超過`
+  return `あと${diffDays}日`
+}
+
+const categoryMeta: Record<ReminderCategory, { label: string; color: string; icon: typeof IconAlertTriangle }> = {
+  overdue: { label: '期限超過', color: 'red', icon: IconAlertTriangle },
+  today: { label: '今日が期限', color: 'orange', icon: IconClock },
+  upcoming: { label: '近日期限', color: 'yellow', icon: IconClock },
+}
+
+function ReminderSection({
+  tasks,
+  onNavigateToProject
+}: {
+  tasks: ReminderTask[]
+  onNavigateToProject: (projectId: string) => void
+}): JSX.Element | null {
+  const [expanded, setExpanded] = useState(true)
+
+  if (tasks.length === 0) return null
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  // Count per category for header badges
+  const counts: Record<ReminderCategory, number> = { overdue: 0, today: 0, upcoming: 0 }
+  for (const t of tasks) {
+    const cat = categorizeByDue(t.dueAt!, todayStr)
+    if (cat) counts[cat]++
+  }
+
+  // Group by category, maintaining sort order
+  const groups: { category: ReminderCategory; items: ReminderTask[] }[] = []
+  let currentCat: ReminderCategory | null = null
+  for (const t of tasks) {
+    const cat = categorizeByDue(t.dueAt!, todayStr)!
+    if (cat !== currentCat) {
+      groups.push({ category: cat, items: [] })
+      currentCat = cat
+    }
+    groups[groups.length - 1].items.push(t)
+  }
+
+  return (
+    <Box mt="sm">
+      {/* Collapsible header */}
+      <Group
+        gap={8}
+        mb={expanded ? 6 : 0}
+        onClick={() => setExpanded((v) => !v)}
+        style={{ cursor: 'pointer', userSelect: 'none' }}
+      >
+        {expanded
+          ? <IconChevronDown size={16} stroke={1.5} />
+          : <IconChevronRight size={16} stroke={1.5} />
+        }
+        <Title order={5} style={{ lineHeight: 1 }}>リマインダー</Title>
+        {/* Summary badges — always visible */}
+        {counts.overdue > 0 && <Badge size="xs" variant="filled" color="red">{counts.overdue}</Badge>}
+        {counts.today > 0 && <Badge size="xs" variant="filled" color="orange">{counts.today}</Badge>}
+        {counts.upcoming > 0 && <Badge size="xs" variant="filled" color="yellow">{counts.upcoming}</Badge>}
+      </Group>
+
+      {expanded && (
+        <Box style={{ maxHeight: 260, overflowY: 'auto' }}>
+          <Stack gap={4}>
+            {groups.map((group) => {
+              const meta = categoryMeta[group.category]
+              const Icon = meta.icon
+              return (
+                <Box key={group.category}>
+                  <Group gap={6} mb={4}>
+                    <Icon size={14} color={`var(--mantine-color-${meta.color}-5)`} />
+                    <Text size="xs" fw={600} c={`${meta.color}.5`}>{meta.label}</Text>
+                    <Badge size="xs" variant="filled" color={meta.color}>{group.items.length}</Badge>
+                  </Group>
+                  <Stack gap={2} ml={20}>
+                    {group.items.map((task) => (
+                      <Box
+                        key={task.id}
+                        onClick={() => onNavigateToProject(task.projectId)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          borderLeft: `3px solid var(--mantine-color-${meta.color}-6)`,
+                          backgroundColor: `color-mix(in srgb, var(--mantine-color-${meta.color}-9) 15%, transparent)`,
+                        }}
+                        className="reminder-row"
+                      >
+                        <Text size="xs" c="dimmed" style={{ flexShrink: 0, width: 70 }}>
+                          {formatDueLabel(task.dueAt!, todayStr)}
+                        </Text>
+                        <Text size="xs" c="dimmed" style={{ flexShrink: 0, width: 100 }} truncate>
+                          {task.projectName}
+                        </Text>
+                        <Text size="xs" style={{ flex: 1, minWidth: 0 }} truncate>
+                          {task.title}
+                        </Text>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )
+            })}
+          </Stack>
+        </Box>
+      )}
+    </Box>
+  )
+}
 
 // ── Sortable + droppable project card ─────────────────────────────────────────
 
@@ -300,6 +434,34 @@ export function HomeScreen({ onNavigateToProject, onNavigateToSettings }: Props)
     currentMailIndexRef.current = next
   }
 
+  // ── Reminder tasks ──────────────────────────────────────────────────────────
+
+  const reminderTasks = useMemo((): ReminderTask[] => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const projectMap = new Map(projects.map((p) => [p.id, p.name]))
+    const all: ReminderTask[] = []
+
+    for (const [projectId, tasks] of Object.entries(tasksByProject)) {
+      for (const t of tasks) {
+        if (!t.dueAt || t.status === 'done') continue
+        const cat = categorizeByDue(t.dueAt, todayStr)
+        if (cat === null) continue
+        all.push({ ...t, projectName: projectMap.get(projectId) ?? '' })
+      }
+    }
+
+    // Sort: overdue first (ascending = most overdue first), then today, then upcoming
+    const catOrder: Record<ReminderCategory, number> = { overdue: 0, today: 1, upcoming: 2 }
+    all.sort((a, b) => {
+      const catA = categorizeByDue(a.dueAt!, todayStr)!
+      const catB = categorizeByDue(b.dueAt!, todayStr)!
+      if (catA !== catB) return catOrder[catA] - catOrder[catB]
+      return a.dueAt! < b.dueAt! ? -1 : a.dueAt! > b.dueAt! ? 1 : 0
+    })
+
+    return all
+  }, [projects, tasksByProject])
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   if (isLoading) {
@@ -408,7 +570,7 @@ export function HomeScreen({ onNavigateToProject, onNavigateToSettings }: Props)
             </SortableContext>
           </Box>
 
-          {/* Right: Forge Today */}
+          {/* Right: Forge Today + Reminder */}
           <Box style={{ flex: 1, minWidth: 0 }}>
             <ForgeTodayArea
               mails={mails}
@@ -421,6 +583,7 @@ export function HomeScreen({ onNavigateToProject, onNavigateToSettings }: Props)
               onRefresh={loadMails}
               onNavigateToSettings={onNavigateToSettings}
             />
+            <ReminderSection tasks={reminderTasks} onNavigateToProject={onNavigateToProject} />
           </Box>
         </Box>
       </Box>
