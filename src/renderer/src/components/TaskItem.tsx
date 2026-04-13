@@ -20,6 +20,7 @@ import {
 } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
 import type { Task, TaskStatus } from '../types'
+import { STATUS_COLORS, STATUS_LABELS, ALL_STATUSES } from '../constants/statusColors'
 
 function getContrastColor(hex: string): string {
   const c = hex.replace('#', '')
@@ -30,22 +31,6 @@ function getContrastColor(hex: string): string {
   const L = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
   return L > 0.179 ? '#1a1a1a' : '#ffffff'
 }
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  'todo': 'To Do',
-  'in-progress': 'WIP',
-  'in-review': 'In Review',
-  'done': 'Done'
-}
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  'todo': 'gray',
-  'in-progress': 'blue',
-  'in-review': 'orange',
-  'done': 'teal'
-}
-
-const ALL_STATUSES: TaskStatus[] = ['todo', 'in-progress', 'in-review', 'done']
 
 type Props = {
   task: Task

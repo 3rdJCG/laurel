@@ -25,23 +25,7 @@ import {
 import { IconFlag } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
 import type { Task, TaskStatus } from '../types'
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  'todo': 'To Do',
-  'in-progress': 'WIP',
-  'in-review': 'In Review',
-  'done': 'Done'
-
-}
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  'todo': 'gray',
-  'in-progress': 'blue',
-  'in-review': 'orange',
-  'done': 'teal'
-}
-
-const ALL_STATUSES: TaskStatus[] = ['todo', 'in-progress', 'in-review', 'done']
+import { STATUS_COLORS, STATUS_LABELS, ALL_STATUSES } from '../constants/statusColors'
 
 // ── KanbanCard ────────────────────────────────────────────────────────────────
 
