@@ -1,10 +1,22 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { ActionIcon, Menu, Text, UnstyledButton } from '@mantine/core'
 import { IconChevronDown, IconChevronRight, IconFlag, IconArrowUp, IconArrowDown, IconGripVertical } from '@tabler/icons-react'
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable'
+import {
+  DndContext,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Genre, Task, TaskStatus } from '../types'
+import type { Genre, Task } from '../types'
+import { STATUS_BAR_COLORS, STATUS_LABELS, ALL_STATUSES, GANTT_MARKER_COLORS } from '../constants/statusColors'
 
 // ── 定数 ──────────────────────────────────────────────────────────────────────
 
@@ -12,24 +24,6 @@ const DAY_WIDTH = 28
 const ROW_HEIGHT = 36
 const HEADER_HEIGHT = 48 // month row (24px) + day row (24px)
 const MS_PER_DAY = 86400000
-
-// ── ユーティリティ ───────────────────────────────────────────��─────────────────
-
-const STATUS_BAR_COLORS: Record<TaskStatus, string> = {
-  todo: 'var(--mantine-color-gray-6)',
-  'in-progress': 'var(--mantine-color-blue-6)',
-  'in-review': 'var(--mantine-color-orange-6)',
-  done: 'var(--mantine-color-teal-7)'
-}
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  todo: 'To Do',
-  'in-progress': 'WIP',
-  'in-review': 'In Review',
-  done: 'Done'
-}
-
-const ALL_STATUSES: TaskStatus[] = ['todo', 'in-progress', 'in-review', 'done']
 
 const DEPTH_ROW_COLORS = [
   'rgba(255,255,255,0.08)',  // depth 0: ルートタスク（明るい）
@@ -207,7 +201,7 @@ function getBarInfo(task: Task, today: Date, startDate: Date): BarInfo {
     elements.push({
       kind: 'marker',
       centerPx: (dayOffset(d) + 0.5) * DAY_WIDTH,
-      color: 'var(--mantine-color-yellow-6)',
+      color: GANTT_MARKER_COLORS.occurred,
       label: '発生',
       field: 'occurredAt'
     })
@@ -219,7 +213,7 @@ function getBarInfo(task: Task, today: Date, startDate: Date): BarInfo {
     elements.push({
       kind: 'marker',
       centerPx: (dayOffset(d) + 0.5) * DAY_WIDTH,
-      color: 'var(--mantine-color-red-6)',
+      color: GANTT_MARKER_COLORS.dueDate,
       label: '期限',
       field: 'dueAt'
     })
@@ -242,7 +236,7 @@ function getBarInfo(task: Task, today: Date, startDate: Date): BarInfo {
     elements.push({
       kind: 'marker',
       centerPx: (dayOffset(d) + 0.5) * DAY_WIDTH,
-      color: 'var(--mantine-color-teal-6)',
+      color: GANTT_MARKER_COLORS.completed,
       label: '完了',
       field: 'completedAt'
     })
@@ -284,6 +278,7 @@ function SortableTaskRow({
   return (
     <div
       ref={setNodeRef}
+      data-gantt-row-id={task.id}
       className="gantt-left-row"
       style={style}
       onClick={() => onNavigate(task.id)}
@@ -637,126 +632,358 @@ export function GanttView({ tasks, genres, expandedIds, onToggleExpand, onNaviga
     [sortedGenreKeys, genres, onReorderGenres, reassignRootOrders]
   )
 
+  // ── D&D: ドラッグ開始時点の行矩形スナップショット ───────────────────────────
+  // verticalListSortingStrategy はドラッグ中に行を transform でシフトさせるので、
+  // DragEnd 時点の getBoundingClientRect は「シフト後」の位置になってしまい、
+  // over.id も over.rect もズレた行にヒットしてしまう。
+  // そこで DragStart 時点で全行の「動かない本来の矩形」を snapshot しておき、
+  // DragEnd ではこちらを使って「ポインタが本来どの行の上にあるか」を判定する。
+  const preDragRectsRef = useRef<Map<string, DOMRect>>(new Map())
+
+  const handleDragStart = useCallback((_event: DragStartEvent): void => {
+    const map = new Map<string, DOMRect>()
+    document.querySelectorAll<HTMLElement>('[data-gantt-row-id]').forEach((el) => {
+      const id = el.getAttribute('data-gantt-row-id')
+      if (id) map.set(id, el.getBoundingClientRect())
+    })
+    preDragRectsRef.current = map
+  }, [])
+
+  // ── D&D 衝突判定：pointerWithin 優先・rectIntersection フォールバック ──────
+  // closestCenter は行の中心距離で判定するため、Phase 境界付近で隣接 Phase の
+  // 末尾サブタスク中心のほうが近くなり「入れたつもりが別 Phase に入る」現象が
+  // 頻発していた。pointerWithin はポインタ位置ベースなので直感と一致する。
+  const ganttCollisionDetection: CollisionDetection = useCallback((args) => {
+    const pointerCollisions = pointerWithin(args)
+    if (pointerCollisions.length > 0) return pointerCollisions
+    return rectIntersection(args)
+  }, [])
+
   // ── タスク並び替え（D&D：全階層・親跨ぎ対応） ────────────────────────────────
 
   const handleTaskDragEnd = useCallback(
     async (event: DragEndEvent): Promise<void> => {
-      const { active, over } = event
-      if (!over || active.id === over.id) return
-
+      const { active } = event
       const activeTask = tasks.find((t) => t.id === active.id)
-      const overTask = tasks.find((t) => t.id === over.id)
-      if (!activeTask || !overTask) return
+      if (!activeTask) return
 
-      // 自分自身・自分の子孫にはドロップ不可（循環防止）
-      const isDescendant = (maybeDesc: Task, ancestorId: string): boolean => {
-        let cur: Task | undefined = maybeDesc
+      // ── ソータブルツリー方式の挿入位置計算 ─────────────────────────────────
+      // 個別行ヒットでは verticalListSortingStrategy のシフトに惑わされる。
+      // 代わりに「active が可視フラットリストのどの index に収まるか」を
+      // 事前 snapshot した矩形（= シフトされない本来の座標系）で計算し、
+      // その index の直前行 (prevTask) と直後行 (nextTask) から親と挿入位置を決める。
+      //
+      // 重要: active が元々あった位置より下の行は、active が抜けた後に
+      //   activeHeight だけ上へ詰まる。判定に使う中心 Y は effective 位置
+      //   （= origCenter - activeHeight）で比較しないと、同親内の下方向移動が
+      //   必ず boundary に引っかかって入れ替わらない。
+
+      const preRects = preDragRectsRef.current
+      const { over } = event
+
+      // 同じ行の上で離した場合は何もしない（G3 primary guard）
+      if (over && over.id === active.id) return
+
+      // active を含む全可視タスクの並び (元々の順序)
+      const fullFlat: Task[] = []
+      for (const row of visibleRows) {
+        if (row.kind === 'task') fullFlat.push(row.task)
+      }
+      const activeOrigIdx = fullFlat.findIndex((t) => t.id === activeTask.id)
+      if (activeOrigIdx < 0) return
+
+      // active を除いた並び
+      const flatVisible: Task[] = fullFlat.filter((t) => t.id !== activeTask.id)
+
+      const activeRect = preRects.get(activeTask.id)
+      const activeHeight = activeRect?.height ?? 0
+
+      // DragEnd 時の位置計算は event.delta + 事前 snapshot した矩形を使う。
+      // active.rect.current.translated は DragEnd タイミングで null になることが
+      // あり、それに依存すると dropCenterY が取れず「必ず末尾に移動」→ジャンル
+      // 消失などの致命的バグに直結する。event.delta は開始からの累積移動量で
+      // 常に信頼できる。
+      const deltaY = event.delta?.y ?? 0
+      const dropCenterY =
+        activeRect != null ? activeRect.top + deltaY + activeRect.height / 2 : null
+
+      // dropCenterY が取れない場合は安全策として何もしない（破壊的移動を防ぐ）
+      if (dropCenterY == null) return
+
+      // 「離した位置が元の位置と同じ」場合は何もしない（G3 / 軽微な誤タップ対策）
+      if (activeRect) {
+        const activeOrigCenter = activeRect.top + activeRect.height / 2
+        if (Math.abs(dropCenterY - activeOrigCenter) < activeHeight / 2) return
+      }
+
+      // dropCenterY が最初に「その行の effective 中心より上」になる i を探す。
+      // flatVisible[i] が元々 active より下にあった (i >= activeOrigIdx) 行なら
+      // 中心を activeHeight 分引き上げて比較する。
+      // 境界 (= ちょうど中心) では「その行の上に入れたい」意図を尊重して `<=`。
+      let newFlatIdx = flatVisible.length
+      for (let i = 0; i < flatVisible.length; i++) {
+        const rect = preRects.get(flatVisible[i].id)
+        if (!rect) continue
+        const wasAfterActive = i >= activeOrigIdx
+        const effectiveCenter =
+          rect.top + rect.height / 2 - (wasAfterActive ? activeHeight : 0)
+        if (dropCenterY <= effectiveCenter) {
+          newFlatIdx = i
+          break
+        }
+      }
+
+      let prevTask: Task | undefined = flatVisible[newFlatIdx - 1]
+      const nextTask: Task | undefined = flatVisible[newFlatIdx]
+
+      // 種別判定
+      type TaskKind = 'root' | 'phase' | 'subtask'
+      const kindOf = (t: Task): TaskKind =>
+        t.parentId === null ? 'root' : t.isCheckpoint ? 'phase' : 'subtask'
+      const activeKind = kindOf(activeTask)
+
+      // 祖先判定（循環防止・first-child 判定両方で使う）
+      const isAncestorOf = (ancestorId: string, descendant: Task): boolean => {
+        let cur: Task | undefined = descendant
         while (cur && cur.parentId) {
           if (cur.parentId === ancestorId) return true
           cur = tasks.find((t) => t.id === cur!.parentId)
         }
         return false
       }
-      if (isDescendant(overTask, activeTask.id)) return
 
-      // 種別判定: Root / Phase / Subtask の 3 種で階層ルールを強制する
-      type TaskKind = 'root' | 'phase' | 'subtask'
-      const kindOf = (t: Task): TaskKind =>
-        t.parentId === null ? 'root' : t.isCheckpoint ? 'phase' : 'subtask'
-      const activeKind = kindOf(activeTask)
-      const overKind = kindOf(overTask)
-
-      // 新しい親を種別に応じて決定（不正な組合せは早期 return で拒否）
+      // 新しい親の決定:
+      // - 直後行が直前行の子孫 → 直前行配下の先頭に挿入 (= prevTask.id)
+      // - それ以外 → prevTask の兄弟として挿入 (= prevTask.parentId)
+      // - prevTask が無い（先頭）→ nextTask.parentId あるいは root
       let newParentId: string | null
-      if (activeKind === 'root') {
-        // Root は Root の兄弟にしか置けない
-        if (overKind !== 'root') return
-        newParentId = null
-      } else if (activeKind === 'phase') {
-        // Phase を Subtask 配下には置けない（Phase ネスト・Subtask 配下 Phase を禁止）
-        if (overKind === 'subtask') return
-        // Root にドロップ → その Root の直下、Phase にドロップ → 同じ Root の Phase 兄弟
-        newParentId = overKind === 'root' ? overTask.id : overTask.parentId
+      if (prevTask) {
+        if (nextTask && isAncestorOf(prevTask.id, nextTask)) {
+          newParentId = prevTask.id
+        } else {
+          newParentId = prevTask.parentId
+        }
       } else {
-        // Subtask は Root に昇格できない（必ず何かの子）
-        if (overKind === 'root') return
-        // Phase にドロップ → Phase の子、Subtask にドロップ → その兄弟
-        newParentId = overKind === 'phase' ? overTask.id : overTask.parentId
+        newParentId = nextTask?.parentId ?? null
       }
 
-      // ジャンル更新ルール
-      // - Root の移動のみ overTask のジャンルを継承
-      // - Phase / Subtask は genre を持たないため null
-      const newGenre: string | null =
-        activeKind === 'root' ? overTask.genre : null
+      // 種別に応じた親妥当性
+      if (activeKind === 'root') {
+        // Root は常に root 直下
+        newParentId = null
+      } else {
+        // Phase / Subtask は root 直下に置けない
+        if (newParentId === null) return
+      }
 
-      // 同じ親内で並び替え（単純 reorder）
-      // overTask が Phase でも、両者の親が一致していれば同一親内 reorder として扱う
-      // （overTask が活性タスクの「親」になるケース ＝ Phase→Root, Subtask→Phase などは
-      //   下の親跨ぎ分岐に委ね、末尾挿入する）
-      if (
-        activeTask.parentId === newParentId &&
-        overTask.parentId === newParentId
-      ) {
-        const siblings = tasks
-          .filter((t) => t.parentId === newParentId)
+      // Phase は Phase の直下にネストしない: Phase 祖先を掘り出して脱出
+      if (activeKind === 'phase') {
+        while (newParentId) {
+          const p = tasks.find((t) => t.id === newParentId)
+          if (!p || kindOf(p) !== 'phase') break
+          prevTask = p
+          newParentId = p.parentId
+        }
+        if (newParentId === null) return
+      }
+
+      // Subtask は「Phase 子を持つコンテナ」の直下に置かない:
+      // active が subtask で newParentId が Phase 子を含むなら、適切な Phase 内へ回避する。
+      // これが無いと「Phase と subtask が同レベルで混在」という構造違反が発生する (E2)。
+      if (activeKind === 'subtask' && newParentId !== null) {
+        const containerId = newParentId
+        const phaseChildren = tasks
+          .filter((t) => t.parentId === containerId && kindOf(t) === 'phase')
           .sort((a, b) => a.order - b.order)
-        const oldIdx = siblings.findIndex((t) => t.id === activeTask.id)
-        const newIdx = siblings.findIndex((t) => t.id === overTask.id)
-        if (oldIdx === -1 || newIdx === -1) return
-        const reordered = arrayMove(siblings, oldIdx, newIdx)
-        try {
-          for (let i = 0; i < reordered.length; i++) {
-            const t = reordered[i]
-            const changes: Partial<Task> = {}
-            if (t.order !== i) changes.order = i
-            if (t.id === activeTask.id && t.genre !== newGenre) changes.genre = newGenre
-            if (Object.keys(changes).length > 0) {
-              await onUpdateTask(t.projectId, t.id, changes)
+        if (phaseChildren.length > 0) {
+          // t から containerId の直接の子まで遡って返す
+          const directChildOf = (t: Task): Task | undefined => {
+            let cur: Task | undefined = t
+            while (cur && cur.parentId !== containerId) {
+              cur = cur.parentId ? tasks.find((x) => x.id === cur!.parentId) : undefined
+            }
+            return cur
+          }
+          let targetPhase: Task | undefined
+          if (prevTask) {
+            const pd = directChildOf(prevTask)
+            if (pd && kindOf(pd) === 'phase') targetPhase = pd
+          }
+          if (!targetPhase && nextTask) {
+            const nd = directChildOf(nextTask)
+            if (nd && kindOf(nd) === 'phase') {
+              targetPhase = nd
+              prevTask = undefined // nextPhase の先頭子として挿入
             }
           }
-        } catch {
-          // ignore
+          if (!targetPhase) {
+            // フォールバック: 最後の Phase の末尾に入れる
+            targetPhase = phaseChildren[phaseChildren.length - 1]
+            const findLastDescendant = (t: Task): Task => {
+              const cs = tasks
+                .filter((c) => c.parentId === t.id)
+                .sort((a, b) => a.order - b.order)
+              return cs.length === 0 ? t : findLastDescendant(cs[cs.length - 1])
+            }
+            prevTask = findLastDescendant(targetPhase)
+          }
+          newParentId = targetPhase.id
         }
-        return
       }
 
-      // 親跨ぎの移動
-      const newSiblings = tasks
+      // 循環防止: 新しい親が active 自身または active の子孫ならキャンセル
+      if (newParentId === activeTask.id) return
+      if (newParentId) {
+        const maybeNewParent = tasks.find((t) => t.id === newParentId)
+        if (maybeNewParent && isAncestorOf(activeTask.id, maybeNewParent)) return
+      }
+
+      // 新しい親の子タスク一覧 (active 除外、order 順)
+      const targetSiblings = tasks
         .filter((t) => t.parentId === newParentId && t.id !== activeTask.id)
         .sort((a, b) => a.order - b.order)
 
-      // 挿入位置の決定
-      // - overTask が親そのもの（Phase→Root の Phase 群追加 / Subtask→Phase の子追加）→ 末尾
-      // - それ以外 → overTask の位置に挿入（兄弟挿入）
-      let insertIdx: number
-      if (overTask.id === newParentId) {
-        insertIdx = newSiblings.length
-      } else {
-        insertIdx = newSiblings.findIndex((t) => t.id === overTask.id)
-        if (insertIdx === -1) insertIdx = newSiblings.length
+      // Root 祖先を辿るヘルパー
+      const rootAncestorOf = (t: Task): Task | undefined => {
+        let cur: Task | undefined = t
+        while (cur && cur.parentId) {
+          cur = tasks.find((x) => x.id === cur!.parentId)
+        }
+        return cur
       }
-      const newReordered = [...newSiblings]
+
+      // 新しい親内での挿入 index
+      let insertIdx: number
+      if (activeKind === 'root') {
+        // Root 挿入: prevTask が非 root の可能性があるので root 祖先で位置決め
+        const prevRoot = prevTask ? rootAncestorOf(prevTask) : undefined
+        if (prevRoot) {
+          const i = targetSiblings.findIndex((t) => t.id === prevRoot.id)
+          insertIdx = i >= 0 ? i + 1 : targetSiblings.length
+        } else {
+          insertIdx = 0
+        }
+      } else if (prevTask && prevTask.id === newParentId) {
+        // prevTask 自身が新親 → 先頭の子として挿入
+        insertIdx = 0
+      } else if (prevTask && prevTask.parentId === newParentId) {
+        const i = targetSiblings.findIndex((t) => t.id === prevTask!.id)
+        insertIdx = i >= 0 ? i + 1 : targetSiblings.length
+      } else {
+        insertIdx = 0
+      }
+
+      // ジャンル更新ルール（Root 移動のみ）
+      // ドロップ位置がどのジャンルセクション内にあるかを、genre-header の行矩形と
+      // タスク行矩形の両方から判定する。これにより:
+      //  - 末尾 (prev が前ジャンルの末端行) に落としたときに正しく次ジャンル扱いできる
+      //  - 空の「未分類」グループにもドロップで移動できる (H3)
+      let newGenre: string | null = null
+      if (activeKind === 'root') {
+        // 各ジャンルセクションの開始 Y (header top) を収集し、drop 位置が
+        // どのセクションに属するかを決定する
+        type Section = { key: string; top: number }
+        const sections: Section[] = []
+        for (const key of sortedGenreKeys) {
+          const headerRect = preRects.get(`__genre:${key}`)
+          if (headerRect) sections.push({ key, top: headerRect.top })
+        }
+        sections.sort((a, b) => a.top - b.top)
+        // drop 位置より上で最も下にある header が属するセクション
+        let targetKey: string | null = null
+        for (const s of sections) {
+          if (s.top <= dropCenterY) targetKey = s.key
+          else break
+        }
+        if (targetKey === null && sections.length > 0) {
+          // drop が最初の header より上にある → 先頭セクション
+          targetKey = sections[0].key
+        }
+        if (targetKey !== null) {
+          newGenre = targetKey === '' ? null : targetKey
+        } else {
+          // フォールバック: 従来の prev/next root ancestor 継承
+          const prevRoot = prevTask ? rootAncestorOf(prevTask) : undefined
+          const nextRoot = nextTask ? rootAncestorOf(nextTask) : undefined
+          newGenre = prevRoot?.genre ?? nextRoot?.genre ?? activeTask.genre ?? null
+        }
+
+        // 決定した genre に合うよう insertIdx を補正:
+        // targetSiblings は parentId===null の全 root。newGenre に属する
+        // root 達の中に挿入する必要がある。prevTask の root 祖先が newGenre 外
+        // なら、newGenre グループの先頭または末尾に置く。
+        const sameGenreSiblings = targetSiblings.filter(
+          (t) => (t.genre ?? null) === newGenre
+        )
+        if (sameGenreSiblings.length === 0) {
+          // 新ジャンル内に他の root が無い → そのジャンルセクションの位置 (= sortedGenreKeys 順) に基づき挿入
+          const genreIdx = sortedGenreKeys.indexOf(newGenre ?? '')
+          let idx = 0
+          for (const sib of targetSiblings) {
+            const sibGenreIdx = sortedGenreKeys.indexOf(sib.genre ?? '')
+            if (sibGenreIdx < genreIdx) idx++
+            else break
+          }
+          insertIdx = idx
+        } else {
+          // 新ジャンルにすでに root がある → その中での位置を決定
+          const prevRoot = prevTask ? rootAncestorOf(prevTask) : undefined
+          if (prevRoot && (prevRoot.genre ?? null) === newGenre) {
+            const i = targetSiblings.findIndex((t) => t.id === prevRoot.id)
+            insertIdx = i >= 0 ? i + 1 : targetSiblings.length
+          } else {
+            // prev が新ジャンル外 → 新ジャンルの先頭 root の直前に挿入
+            const firstInGenre = sameGenreSiblings[0]
+            const i = targetSiblings.findIndex((t) => t.id === firstInGenre.id)
+            insertIdx = i >= 0 ? i : 0
+          }
+        }
+      }
+
+      // 同親かつ位置不変なら何もしない
+      if (activeTask.parentId === newParentId) {
+        const fullSiblings = tasks
+          .filter((t) => t.parentId === newParentId)
+          .sort((a, b) => a.order - b.order)
+        const oldIdx = fullSiblings.findIndex((t) => t.id === activeTask.id)
+        // targetSiblings での insertIdx は active を除いた基準なので、
+        // fullSiblings 基準に合わせるには active より後ろなら +1
+        const oldIdxInTarget = oldIdx
+        if (oldIdxInTarget === insertIdx) {
+          // ジャンルだけ変わる可能性があるので、そのケースのみ更新
+          if (activeKind === 'root' && activeTask.genre !== newGenre) {
+            await onUpdateTask(activeTask.projectId, activeTask.id, { genre: newGenre })
+          }
+          return
+        }
+      }
+
+      // 同親内でも同親以外でも、arrayMove ではなく
+      // 「active を除外した targetSiblings に insertIdx で差し込む」方式で統一する
+      const newReordered = [...targetSiblings]
       newReordered.splice(insertIdx, 0, activeTask)
 
-      const oldSiblings = tasks
-        .filter((t) => t.parentId === activeTask.parentId && t.id !== activeTask.id)
-        .sort((a, b) => a.order - b.order)
+      const oldSiblings =
+        activeTask.parentId === newParentId
+          ? []
+          : tasks
+              .filter((t) => t.parentId === activeTask.parentId && t.id !== activeTask.id)
+              .sort((a, b) => a.order - b.order)
 
       try {
-        // 古い親の siblings の order を詰める
+        // 旧親の order 詰め直し (親跨ぎのときのみ)
         for (let i = 0; i < oldSiblings.length; i++) {
           if (oldSiblings[i].order !== i) {
             await onUpdateTask(oldSiblings[i].projectId, oldSiblings[i].id, { order: i })
           }
         }
-        // 新しい親の siblings（activeTask 含む）の order を振り直す
+        // 新親の order 振り直し
         for (let i = 0; i < newReordered.length; i++) {
           const t = newReordered[i]
           if (t.id === activeTask.id) {
             const changes: Partial<Task> = { order: i }
             if (t.parentId !== newParentId) changes.parentId = newParentId
-            if (t.genre !== newGenre) changes.genre = newGenre
+            if (activeKind === 'root' && t.genre !== newGenre) changes.genre = newGenre
             await onUpdateTask(t.projectId, t.id, changes)
           } else if (t.order !== i) {
             await onUpdateTask(t.projectId, t.id, { order: i })
@@ -766,7 +993,7 @@ export function GanttView({ tasks, genres, expandedIds, onToggleExpand, onNaviga
         // ignore
       }
     },
-    [tasks, onUpdateTask]
+    [tasks, onUpdateTask, visibleRows, sortedGenreKeys]
   )
 
   // ── レンダリング ─────────────────────────────────────────────────────────────
@@ -792,7 +1019,11 @@ export function GanttView({ tasks, genres, expandedIds, onToggleExpand, onNaviga
           <Text size="xs" c="dimmed" style={{ width: 52, textAlign: 'center', flexShrink: 0 }}>状態</Text>
         </div>
 
-        <DndContext collisionDetection={closestCenter} onDragEnd={handleTaskDragEnd}>
+        <DndContext
+          collisionDetection={ganttCollisionDetection}
+          onDragStart={handleDragStart}
+          onDragEnd={handleTaskDragEnd}
+        >
         <SortableContext items={sortableTaskIds} strategy={verticalListSortingStrategy}>
         {visibleRows.map((row) => {
           if (row.kind === 'genre-header') {
@@ -802,6 +1033,7 @@ export function GanttView({ tasks, genres, expandedIds, onToggleExpand, onNaviga
             return (
               <div
                 key={`genre-${row.genre}`}
+                data-gantt-row-id={`__genre:${row.genreKey}`}
                 className="gantt-left-row gantt-genre-header"
                 style={{ paddingLeft: 8 }}
               >
