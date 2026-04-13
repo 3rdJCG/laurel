@@ -3,6 +3,7 @@ import { MantineProvider, AppShell, createTheme } from '@mantine/core'
 import { useLocalStorage } from '@mantine/hooks'
 import { Notifications } from '@mantine/notifications'
 import { DataProvider, useData } from './context/DataContext'
+import { BackHandlerProvider, useBackHandlerRegistry } from './context/BackHandlerContext'
 import { HomeScreen } from './screens/HomeScreen'
 import { ProjectScreen } from './screens/ProjectScreen'
 import { TaskDetailScreen } from './screens/TaskDetailScreen'
@@ -50,6 +51,7 @@ const SIDEBAR_COLLAPSED_WIDTH = 48
 
 function AppContent(): JSX.Element {
   const { projects } = useData()
+  const backRegistry = useBackHandlerRegistry()
   const [currentView, setCurrentView] = useState<View>({ type: 'home' })
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [collapsed, setCollapsed] = useLocalStorage<boolean>({
@@ -76,11 +78,12 @@ function AppContent(): JSX.Element {
   )
 
   const handleBack = useCallback((): void => {
+    if (backRegistry.runBack()) return
     const prev = historyRef.current.pop()
     if (prev) {
       setCurrentView(prev)
     }
-  }, [])
+  }, [backRegistry])
 
   useEffect(() => {
     const onMouseUp = (e: MouseEvent): void => {
@@ -169,7 +172,9 @@ function App(): JSX.Element {
     <MantineProvider theme={theme} defaultColorScheme="dark">
       <Notifications />
       <DataProvider>
-        <AppContent />
+        <BackHandlerProvider>
+          <AppContent />
+        </BackHandlerProvider>
       </DataProvider>
     </MantineProvider>
   )

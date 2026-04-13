@@ -7,6 +7,7 @@ import {
 } from '@mantine/core'
 import { IconCopy, IconClipboard, IconX } from '@tabler/icons-react'
 import { useData } from '../context/DataContext'
+import { useBackHandler } from '../context/BackHandlerContext'
 import { TaskItem } from '../components/TaskItem'
 import { IssuesTab } from '../components/IssuesTab'
 import { GanttView } from '../components/GanttView'
@@ -58,6 +59,11 @@ export function ProjectScreen({ projectId, initialTab, onNavigateToTask }: Props
     const saved = localStorage.getItem(`laurel:expand:${projectId}`)
     setExpandedIds(saved ? new Set<string>(JSON.parse(saved)) : new Set<string>())
   }, [projectId, initialTab])
+
+  // Gantt/Issues タブから戻る → Tasks タブへ
+  useBackHandler(activeTab !== 'tasks', () => {
+    setActiveTab('tasks')
+  })
 
   const handleToggleExpand = (taskId: string): void => {
     setExpandedIds((prev) => {

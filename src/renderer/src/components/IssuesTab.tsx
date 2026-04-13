@@ -5,6 +5,7 @@ import {
 } from '@mantine/core'
 import { marked } from 'marked'
 import { useData } from '../context/DataContext'
+import { useBackHandler } from '../context/BackHandlerContext'
 import type { Issue, IssueComment } from '../types'
 
 marked.setOptions({ breaks: true, gfm: true })
@@ -499,6 +500,11 @@ export function IssuesTab({ projectId, onOpenCountChange }: Props): JSX.Element 
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<ViewState>({ type: 'list' })
   const [hideClosed, setHideClosed] = useState(false)
+
+  // Issue 詳細/新規作成から戻る → Issue 一覧へ
+  useBackHandler(view.type !== 'list', () => {
+    setView({ type: 'list' })
+  })
 
   const loadIssues = useCallback(async () => {
     setLoading(true)
