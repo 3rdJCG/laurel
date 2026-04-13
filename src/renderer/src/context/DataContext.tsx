@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { ulid } from 'ulid'
 import type { Project, Task, Genre, Comment, Issue, IssueComment } from '../types'
 import type { ProjectFile, LoadAllResult } from '../../../main/storage/projectStore'
@@ -52,6 +52,11 @@ const DataContext = createContext<DataContextValue | null>(null)
 export function DataProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [projects, setProjects] = useState<Project[]>([])
   const [tasksByProject, setTasksByProject] = useState<Record<string, Task[]>>({})
+  // 同レンダー内で updateTask を連続 await したとき、古い tasksByProject クロージャ
+  // を読んで後続 update が前の update を上書きする問題を防ぐため、常に最新の
+  // tasks を ref で保持する。setTasksByProject と同時に同期的に更新する。
+  const tasksByProjectRef = useRef<Record<string, Task[]>>({})
+  tasksByProjectRef.current = tasksByProject
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loadErrors, setLoadErrors] = useState<LoadError[]>([])
@@ -255,9 +260,13 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
 
   const updateTask = useCallback(
     async (projectId: string, taskId: string, changes: Partial<Task>) => {
-      const existing = tasksByProject[projectId] ?? []
+      // ref から最新 tasks を読む。これにより同レンダー内での連続 await 呼び出しでも
+      // 直前の update が反映された状態を読める（前の update を上書きしない）。
+      const existing = tasksByProjectRef.current[projectId] ?? []
       const newTasks = existing.map((t) => (t.id === taskId ? { ...t, ...changes } : t))
-      setTasksByProject((prev) => ({ ...prev, [projectId]: newTasks }))
+      // ref も同期的に更新して次の呼び出しに伝播
+      tasksByProjectRef.current = { ...tasksByProjectRef.current, [projectId]: newTasks }
+      setTasksByProject(tasksByProjectRef.current)
       const project = projects.find((p) => p.id === projectId)!
       const data: ProjectFile = { version: 1, project, tasks: newTasks }
       const result = (await window.api.invoke('data:save-project', { projectId, data })) as {
@@ -266,7 +275,7 @@ export function DataProvider({ children }: { children: React.ReactNode }): JSX.E
       }
       if (!result.ok) throw new Error(result.error?.message ?? 'Save failed')
     },
-    [projects, tasksByProject]
+    [projects]
   )
 
   const deleteTask = useCallback(
