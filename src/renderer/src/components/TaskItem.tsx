@@ -327,9 +327,12 @@ export function TaskItem({ task, depth, allTasks, onSaveError, expandedIds, onTo
                     <ActionIcon size="xs" onClick={() => { setShowAddGenreForm(false); setNewGenreName('') }}><IconX size={12} stroke={2} /></ActionIcon>
                   </Group>
                 ) : (
-                  <Menu.Item onClick={() => setShowAddGenreForm(true)}>
+                  <UnstyledButton
+                    onClick={(e) => { e.stopPropagation(); setShowAddGenreForm(true) }}
+                    style={{ display: 'block', width: '100%', padding: '6px 12px', textAlign: 'left' }}
+                  >
                     <Text size="xs">+ 新しいジャンルを追加</Text>
-                  </Menu.Item>
+                  </UnstyledButton>
                 )}
               </Menu.Dropdown>
             </Menu>

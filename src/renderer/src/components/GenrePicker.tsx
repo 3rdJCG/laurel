@@ -91,9 +91,15 @@ export function GenrePicker({ value, genres, onChange, onAddGenre }: Props): JSX
             <ActionIcon size="xs" onClick={() => { setShowAddForm(false); setNewName('') }}>✕</ActionIcon>
           </Group>
         ) : (
-          <Menu.Item onClick={() => setShowAddForm(true)}>
+          <UnstyledButton
+            onClick={(e) => { e.stopPropagation(); setShowAddForm(true) }}
+            style={{
+              display: 'block', width: '100%',
+              padding: '6px 12px', textAlign: 'left'
+            }}
+          >
             <Text size="xs">+ 新しいジャンルを追加</Text>
-          </Menu.Item>
+          </UnstyledButton>
         )}
       </Menu.Dropdown>
     </Menu>
